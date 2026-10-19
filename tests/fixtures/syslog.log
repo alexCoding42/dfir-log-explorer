@@ -1,0 +1,5 @@
+<165>1 2026-10-15T10:00:00+02:00 edge.example auth 42 ID47 [origin@32473 user="analyst" note="quoted\" and bracket\]"] Synthetic login
+<34>1 - edge.example worker - - - Synthetic message without a timestamp
+Oct 15 08:00:00 edge.example worker[42]: Synthetic BSD message
+<192>1 broken-date edge.example worker 42 ID48 - Synthetic invalid priority and date
+unsupported source record

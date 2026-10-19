@@ -132,6 +132,10 @@ export function SourceFilters({
           <option value="apache">Apache</option>
           <option value="nginx">Nginx</option>
           <option value="json_lines">JSON Lines</option>
+          <option value="syslog">Syslog</option>
+          <option value="iptables">Netfilter / iptables</option>
+          <option value="haproxy">HAProxy HTTP</option>
+          <option value="modsecurity">ModSecurity audit</option>
           <option value="text">Text</option>
         </select>
       </label>
@@ -164,12 +168,12 @@ export function SourceFilters({
         }}
       >
         <label>
-          JSON field
+          Attribute / JSON field
           <input
-            aria-label="JSON field name"
+            aria-label="Attribute or JSON field name"
             name="key"
             defaultValue={jsonFilter?.key ?? ""}
-            placeholder="e.g. user"
+            placeholder="e.g. firewall.DPT or user"
             maxLength={4096}
             required
             disabled={disabled}
@@ -178,7 +182,7 @@ export function SourceFilters({
         <label>
           Equals
           <input
-            aria-label="JSON field value"
+            aria-label="Attribute or JSON field value"
             name="value"
             defaultValue={jsonFilter?.value ?? ""}
             placeholder="Exact scalar value"
@@ -187,7 +191,7 @@ export function SourceFilters({
           />
         </label>
         <button className="secondary-button" disabled={disabled}>
-          Apply JSON filter
+          Apply attribute filter
         </button>
       </form>
     </div>

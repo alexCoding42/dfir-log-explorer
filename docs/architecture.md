@@ -13,7 +13,8 @@ OS file picker
   -> selected path held in Rust
   -> read-only buffered reader
   -> bounded line decoder + SHA-256
-  -> Apache / Nginx / JSON Lines / plain-text parser
+  -> bounded native ModSecurity framing when explicitly selected
+  -> Apache / Nginx / JSON Lines / Syslog / iptables / HAProxy / ModSecurity / text parser
   -> transactional DuckDB Appender
   -> bounded query result / selected event detail
   -> React virtualized table
@@ -25,7 +26,7 @@ The webview supplies a parser choice, search text, pagination, and an event ID. 
 
 One worker owns database access through a mutex. Blocking work is moved to Tauri's blocking runtime rather than the UI thread. A separate atomic cancellation flag is readable without acquiring the database mutex.
 
-The reader buffers 256 KiB and caps individual lines at 1 MiB, including the terminator. DuckDB's Appender buffers and flushes rows in bulk. Progress is throttled to approximately ten updates per second and sent over a Tauri channel. It reports bytes read, total source bytes, line count, and elapsed time.
+The reader buffers 256 KiB and caps individual lines at 1 MiB, including the terminator. Explicit ModSecurity mode also caps aggregate records at 1 MiB and checks cancellation between physical lines. A fresh A boundary resynchronizes an incomplete transaction; only a matching Z closes it. Other modes retain one event per physical line. DuckDB's Appender buffers and flushes rows in bulk. Progress is throttled to approximately ten updates per second and sent over a Tauri channel. It reports bytes read, total source bytes, line count, and elapsed time.
 
 Each import appends one source and its events/JSON scalar attributes/summary inside a transaction. The appender is explicitly flushed; cancellation and errors roll back. Every previous source remains available after rollback. Queries are deliberately suspended during import in this MVP. Partial results, resumable ingestion, and concurrent exploration will require a separate storage/transaction decision.
 
@@ -33,11 +34,11 @@ Source bytes are hashed as they are consumed. File size and modification time ar
 
 ## Event model
 
-Every record retains its source line, byte offset, original byte sequence, decoded display text, parser name, mutually exclusive parsing status, fields, and optional warning. Source summaries additionally retain the selected parser and local path/provenance. Cases use explicit schema version 1. Unknown versions are rejected before switching the active case; no migration is implemented. Event IDs are global and contiguous across all committed sources; source IDs are stable, while line numbers and byte offsets restart for each source. HTTP fields include the original-offset ISO timestamp, UTC epoch milliseconds, remote host/address, request method/path/protocol, status, response bytes, referrer, and user agent.
+Every record retains its source line, byte offset, original byte sequence, decoded display text, parser name, mutually exclusive parsing status, fields, and optional warning. Source summaries additionally retain the selected parser and local path/provenance. Cases use explicit schema version 1. Unknown versions are rejected before switching the active case; no migration is implemented. Event IDs are global and contiguous across all committed sources; source IDs are stable, while line numbers and byte offsets restart for each source. Event IDs count logical events; multiline provenance uses the first physical line/byte offset, detail computes the final line from retained bytes, and source summaries additionally count physical lines. No database column migration is needed. HTTP fields include the original-offset ISO timestamp, UTC epoch milliseconds, remote host/address, request method/path/protocol, status, response bytes, referrer, and user agent.
 
 Unknown lines in automatic mode are plain text. A matching Apache record with invalid fields is Partial with an engine diagnostic; independent validation preserves all valid fields. Pattern mismatches are Unparsed. Explicit plain-text mode considers successfully read lines Parsed without claiming structured extraction. Explicit Apache mode also marks unmatched lines as warnings. Common/Combined optional fields and the Apache `-` sentinels remain valid absences. Encoding warnings are independent of parsing status. Original Apache escapes are preserved rather than interpreted. Blank lines are records. A final line without a newline is retained.
 
-The MVP 0 timestamp representation preserves the source offset and a numeric instant. JSON Lines uses the same offset-preserving text/UTC millisecond model. Original JSON objects remain available in the inspector; top-level scalars are stored separately for parameterized exact filters and decoded-value search. Ambiguous dates never receive an implicit local timezone. See [format rules](mvp-1-formats.md).
+The MVP 0 timestamp representation preserves the source offset and a numeric instant. JSON Lines uses the same offset-preserving text/UTC millisecond model. The four explicit security readers follow the [MVP 2 format contract](mvp-2-formats.md); ambiguous BSD/HAProxy dates remain attributes with diagnostics, never invented instants. Original JSON objects and security-reader attributes remain available in the inspector; top-level scalars are stored separately for parameterized exact filters and decoded-value search. Ambiguous dates never receive an implicit local timezone. See [format rules](mvp-1-formats.md).
 
 ## Query and UI boundaries
 

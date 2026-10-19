@@ -38,7 +38,7 @@ export function ParsingSummary({
           className="summary-total"
           onClick={() => onFilter(null)}
         >
-          <span>Total lines</span>
+          <span>Total events</span>
           <strong>{formatNumber(total)}</strong>
           <small>Source order preserved</small>
         </button>

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     fs::File,
-    io::{BufRead, BufReader, Read},
+    io::{BufRead, BufReader},
     path::{Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
     time::{Duration, Instant},
@@ -36,6 +36,8 @@ pub enum EngineError {
         "A line exceeds the 1 MiB safety limit. Import was rolled back; the source is unchanged."
     )]
     LineTooLong,
+    #[error("A multiline event exceeds the 1 MiB safety limit. Import was rolled back; the source is unchanged.")]
+    RecordTooLong,
     #[error("The source changed during import. Import was rolled back; retry with a stable copy.")]
     SourceChanged,
     #[error("Select a regular file, not a directory or device.")]
@@ -76,6 +78,8 @@ pub struct SourceSummary {
     pub unparsed_events: u64,
     pub total_bytes: u64,
     pub total_events: u64,
+    #[serde(default)]
+    pub total_lines: u64,
     pub parsed_events: u64,
     pub text_events: u64,
     pub warning_events: u64,
@@ -108,6 +112,7 @@ pub struct EventRow {
 pub struct EventDetail {
     #[serde(flatten)]
     pub event: EventRow,
+    pub end_line_number: u64,
     pub raw: String,
     pub raw_hex: Option<String>,
 }
@@ -346,6 +351,8 @@ impl Engine {
         }
         let mut has_attributes = false;
         let mut buffer = Vec::with_capacity(4096);
+        let mut pending = None;
+        let mut events = 0u64;
         let mut hash = Sha256::new();
         let (
             mut bytes_read,
@@ -381,17 +388,20 @@ impl Engine {
                 if cancelled.load(Ordering::Relaxed) {
                     return Err(EngineError::Cancelled);
                 }
-                buffer.clear();
-                let size = reader
-                    .by_ref()
-                    .take((MAX_LINE_BYTES + 1) as u64)
-                    .read_until(b'\n', &mut buffer)?;
+                crate::records::read_record(
+                    &mut reader,
+                    mode,
+                    &mut buffer,
+                    &mut pending,
+                    cancelled,
+                )?;
+                let size = buffer.len();
                 if size == 0 {
                     break;
                 }
-                if size > MAX_LINE_BYTES {
-                    return Err(EngineError::LineTooLong);
-                }
+                let first_line = lines + 1;
+                lines += crate::records::physical_lines(&buffer);
+                events += 1;
                 hash.update(&buffer);
                 let display_bytes = buffer.strip_suffix(b"\n").unwrap_or(&buffer);
                 let display_bytes = display_bytes.strip_suffix(b"\r").unwrap_or(display_bytes);
@@ -404,7 +414,6 @@ impl Engine {
                         None => warning.into(),
                     });
                 }
-                lines += 1;
                 parsed += u64::from(fields.parse_status == ParseStatus::Parsed);
                 partial += u64::from(fields.parse_status == ParseStatus::Partial);
                 unparsed += u64::from(fields.parse_status == ParseStatus::Unparsed);
@@ -425,13 +434,13 @@ impl Engine {
                         };
                         if let Some(value) = scalar {
                             has_attributes = true;
-                            attributes.append_row(params![first_id + lines as i64, key, value])?;
+                            attributes.append_row(params![first_id + events as i64, key, value])?;
                         }
                     }
                 }
                 appender.append_row(params![
-                    first_id + lines as i64,
-                    lines as i64,
+                    first_id + events as i64,
+                    first_line as i64,
                     bytes_read as i64,
                     buffer.as_slice(),
                     message.as_ref(),
@@ -493,7 +502,8 @@ impl Engine {
                             .into_owned()
                     }),
                 total_bytes,
-                total_events: lines,
+                total_events: events,
+                total_lines: lines,
                 parsed_events: parsed,
                 text_events: text,
                 warning_events: warnings,
@@ -593,6 +603,8 @@ impl Engine {
         let row = rows.next()?.ok_or(EngineError::EventNotFound)?;
         let raw_bytes: Vec<u8> = row.get(20)?;
         Ok(EventDetail {
+            end_line_number: row.get::<_, i64>(1)? as u64
+                + crate::records::physical_lines(&raw_bytes).saturating_sub(1),
             event: event_row(row)?,
             raw: row.get(19)?,
             raw_hex: std::str::from_utf8(&raw_bytes)

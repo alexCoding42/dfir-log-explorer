@@ -44,8 +44,11 @@ function EvidenceItem({
               </dd>
             </div>
             <div>
-              <dt>Source lines</dt>
-              <dd>{formatNumber(source.totalEvents)}</dd>
+              <dt>Events / source lines</dt>
+              <dd>
+                {formatNumber(source.totalEvents)} /{" "}
+                {formatNumber(source.totalLines || source.totalEvents)}
+              </dd>
             </div>
             <div>
               <dt>Parser selection</dt>
@@ -81,7 +84,7 @@ function EvidenceItem({
         <div>
           <strong>Original content retained</strong>
           <p>
-            Sources are opened read-only. Each line retains its original bytes,
+            Sources are opened read-only. Each event retains its original bytes,
             line number and byte offset. Import failures and cancellation
             preserve the previous dataset.
           </p>
@@ -162,7 +165,8 @@ export function ParsersView({
         <CircleHelp size={18} />
         <p>
           Apache Error Logs, compressed and binary formats, custom parsers and
-          multiline events are not supported by this MVP.
+          arbitrary multiline grouping are not supported. Native ModSecurity 2.x
+          audit transactions support explicit A–Z grouping.
         </p>
       </div>
     </section>

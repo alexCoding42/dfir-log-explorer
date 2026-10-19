@@ -351,7 +351,7 @@ test("themes, navigation, evidence, inspector closure and desktop dimensions", a
   ).toBeVisible();
   await expect(page.locator(".hash-value")).toHaveText(/[a-f0-9]{64}/);
   await page.getByRole("button", { name: "Parsers", exact: true }).click();
-  await expect(page.locator(".parser-card")).toHaveCount(5);
+  await expect(page.locator(".parser-card")).toHaveCount(9);
   await page
     .getByRole("button", { name: "Select parser", exact: true })
     .first()
@@ -588,4 +588,43 @@ test("timeline details support hover, keyboard selection and filtered empty stat
   await expect(page.getByLabel("Event timeline")).toContainText(
     "No valid timestamps in these results",
   );
+});
+
+test("security readers expose explicit scope and combined attribute filters", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const picker = page.getByRole("combobox", { name: "Parser format" });
+  for (const reader of ["syslog", "iptables", "haproxy", "modsecurity"]) {
+    await picker.selectOption(reader);
+    await expect(picker).toHaveValue(reader);
+  }
+  await page.getByRole("button", { name: "Parsers", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "ModSecurity audit" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Native serial audit · multiline", { exact: false }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Explore", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Explore a synthetic sample" })
+    .click();
+  await page.getByRole("button", { name: "Additional filters" }).click();
+  await page
+    .getByRole("combobox", { name: "Reader filter" })
+    .selectOption("iptables");
+  await expect(page.getByText("No matching events")).toBeVisible();
+  await page.getByRole("combobox", { name: "Reader filter" }).selectOption("");
+  await page
+    .getByRole("textbox", { name: "Attribute or JSON field name" })
+    .fill("firewall.DPT");
+  await page
+    .getByRole("textbox", { name: "Attribute or JSON field value" })
+    .fill("443");
+  await page.getByRole("button", { name: "Apply attribute filter" }).click();
+  await expect(page.getByText("No matching events")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "firewall.DPT = 443 ×" }),
+  ).toBeVisible();
 });

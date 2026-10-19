@@ -1,4 +1,13 @@
-export type ParserMode = "auto" | "apache" | "nginx" | "json_lines" | "text";
+export type ParserMode =
+  | "auto"
+  | "apache"
+  | "nginx"
+  | "json_lines"
+  | "syslog"
+  | "iptables"
+  | "haproxy"
+  | "modsecurity"
+  | "text";
 export type ParseStatus = "parsed" | "partial" | "unparsed";
 export type SearchField =
   | "all"
@@ -42,6 +51,7 @@ export interface SourceSummary {
   parserMode: ParserMode;
   totalBytes: number;
   totalEvents: number;
+  totalLines?: number;
   parsedEvents: number;
   partialEvents: number;
   unparsedEvents: number;
@@ -71,6 +81,7 @@ export interface EventRow {
   parseError: string | null;
 }
 export interface EventDetail extends EventRow {
+  endLineNumber?: number;
   raw: string;
   rawHex: string | null;
   jsonFields?: Record<string, unknown>;

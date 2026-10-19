@@ -51,7 +51,7 @@ export function Sidebar({
       </div>
       <div className="workspace-label">
         <span>WORKSPACE</span>
-        <span className="version-tag">MVP 1</span>
+        <span className="version-tag">MVP 2</span>
       </div>
       <nav>
         {(
@@ -102,7 +102,7 @@ export function Sidebar({
             <strong>{source.name}</strong>
             <small>
               {formatBytes(source.totalBytes)} ·{" "}
-              {formatNumber(source.totalEvents)} lines
+              {formatNumber(source.totalEvents)} events
             </small>
           </span>
         </button>
@@ -246,6 +246,10 @@ export function ImportActions({
           <option value="apache">Apache Common / Combined</option>
           <option value="nginx">Nginx Access</option>
           <option value="json_lines">JSON Lines</option>
+          <option value="syslog">Syslog</option>
+          <option value="iptables">Netfilter / iptables</option>
+          <option value="haproxy">HAProxy HTTP</option>
+          <option value="modsecurity">ModSecurity audit</option>
           <option value="text">Plain text</option>
         </select>
       </label>

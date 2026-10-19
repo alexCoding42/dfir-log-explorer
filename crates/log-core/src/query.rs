@@ -162,6 +162,10 @@ impl Query {
                 ParserMode::Nginx => "nginx",
                 ParserMode::JsonLines => "json_lines",
                 ParserMode::Text => "text",
+                ParserMode::Syslog => "syslog",
+                ParserMode::Iptables => "iptables",
+                ParserMode::Haproxy => "haproxy",
+                ParserMode::Modsecurity => "modsecurity",
                 ParserMode::Auto => unreachable!(),
             };
             clauses.push("parser = ?".into());

@@ -26,7 +26,9 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
         <p>
           Sources are opened read-only. Timestamps preserve their source
           offsets; timeline intervals and time filters use UTC explicitly.
-          Missing timestamps stay outside the timeline.
+          Missing timestamps stay outside the timeline. BSD Syslog and standard
+          HAProxy dates have no known UTC instant and retain ambiguity
+          diagnostics.
         </p>
         <p>
           Imports add sources to the active case; cancellation preserves
@@ -34,6 +36,13 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
           file. Saved cases reopen without the original logs and save future
           imports automatically. Unsaved temporary cases are removed on normal
           exit.
+        </p>
+        <p>
+          Select security readers explicitly. ModSecurity audit groups native
+          2.x A–Z transactions; the inspector shows source-line ranges and
+          reader attributes. Exact attribute filters are available from the
+          inspector or Filters. Multiline events are limited to 1 MiB; exceeding
+          the limit rolls back the complete import.
         </p>
         <div className="shortcut-list">
           <span>

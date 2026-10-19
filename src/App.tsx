@@ -283,7 +283,7 @@ export function App({ bridge }: { bridge: Bridge }) {
         setPage(emptyPage);
         setPageAvailable(false);
         setNotice(
-          `Imported ${formatNumber(summary.totalEvents)} lines. Source file unchanged.`,
+          `Imported ${formatNumber(summary.totalEvents)} events from ${formatNumber(summary.totalLines || summary.totalEvents)} lines. Source file unchanged.`,
         );
       } catch (reason) {
         const message =
@@ -814,8 +814,8 @@ export function App({ bridge }: { bridge: Bridge }) {
                   <ArrowRight size={14} />
                 </button>
                 <div className="supported-formats">
-                  Apache / Nginx <span>·</span> JSON Lines <span>·</span> Plain
-                  text <span>·</span> UTF-8
+                  Apache / Nginx <span>·</span> JSON Lines <span>·</span> Syslog
+                  <span>·</span> Firewall / WAF <span>·</span> HAProxy
                 </div>
                 <div className="empty-workflow">
                   <span>
@@ -924,7 +924,7 @@ export function App({ bridge }: { bridge: Bridge }) {
             </span>
           ) : (
             <span>
-              DFIR Log Explorer <span className="footer-version">v0.2.1</span>
+              DFIR Log Explorer <span className="footer-version">v0.3.0</span>
             </span>
           )}
         </footer>

@@ -1,9 +1,6 @@
 name: MVP 1 checks and desktop builds
 
 on:
-  pull_request:
-  push:
-    branches: ["main"]
   workflow_dispatch:
 
 permissions:

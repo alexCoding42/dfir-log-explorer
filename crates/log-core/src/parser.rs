@@ -11,6 +11,10 @@ pub enum ParserMode {
     Apache,
     Nginx,
     JsonLines,
+    Syslog,
+    Iptables,
+    Haproxy,
+    Modsecurity,
     Text,
 }
 
@@ -62,6 +66,13 @@ fn apache_pattern() -> &'static Regex {
 }
 
 pub fn parse_line(line: &str, mode: ParserMode) -> ParsedFields {
+    match mode {
+        ParserMode::Syslog => return crate::security_formats::syslog(line),
+        ParserMode::Iptables => return crate::security_formats::iptables(line),
+        ParserMode::Haproxy => return crate::security_formats::haproxy(line),
+        ParserMode::Modsecurity => return crate::security_formats::modsecurity(line),
+        _ => {}
+    }
     let mut fields = ParsedFields {
         parser: "text".into(),
         ..Default::default()

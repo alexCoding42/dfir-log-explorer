@@ -4,7 +4,7 @@
 
 A focused log exploration tool for digital forensic and incident response workflows. DFIR Log Explorer helps analysts turn collected log files into structured, searchable events, with the original log content and parsing diagnostics available alongside the results.
 
-**Project status:** `main` contains Delivery 0 and the integrated **Delivery 1 (v0.2.1)**, including the compact workspace and Statistics improvements. **Delivery 2 (v0.3.0)** is proposed in [PR #6](https://github.com/a-cisse/dfir-log-explorer/pull/6), awaiting human acceptance and integration. These are early test builds, not a production release. “Delivery” replaces the historical MVP planning label; existing file paths, branch names and application versions remain unchanged.
+**Project status:** **Delivery 2 (v0.3.0)** was explicitly accepted on 2026-10-19 for integration through [PR #6](https://github.com/alexCoding42/dfir-log-explorer/pull/6). It adds selected security-log readers and multiline ModSecurity audit handling to Delivery 1 and the Statistics improvements. Delivery 3 remains Backlog pending scope agreement and separate start authorization. These are early test builds, not a production release.
 
 ## Overview
 
@@ -41,7 +41,7 @@ The tool is intended to complement existing workflows, including Graylog, Timesk
 
 ## Features
 
-### Foundation from Delivery 0
+### Foundation delivered in Delivery 0
 
 - Import one uncompressed text source into a temporary analysis session, with automatic Apache recognition or explicit Apache/plain-text selection.
 - Search raw logs and extracted fields using case-insensitive literal substrings. Combine parsing status, warnings, exact-field and explicit UTC time filters.
@@ -51,7 +51,7 @@ The tool is intended to complement existing workflows, including Graylog, Timesk
 - Track import progress and cancel an import. Cancellation or failure rolls back the import and preserves the previous dataset.
 - Inspect the source's SHA-256 fingerprint; use Light, Dark or System themes, persistent display preferences, compact navigation and keyboard shortcuts.
 
-### Integrated in Delivery 1
+### Delivered in Delivery 1
 
 - Start with a compact log table immediately after import: line, timestamp, parsing status and raw content. Open additional filters and Statistics when needed; save/open/new actions are grouped in the Case menu.
 - Save temporary analysis as a local `.dfir` case and reopen it without access to the original source files. Further imports into a saved case are retained automatically.
@@ -60,6 +60,15 @@ The tool is intended to complement existing workflows, including Graylog, Timesk
 - Combine source, identified-reader, timestamp-presence and exact JSON scalar filters with the existing filters. Compare timestamps across sources using UTC instants while retaining source offsets.
 
 The [Delivery 1 acceptance guide][mvp1-acceptance], [reader/date rules][mvp1-formats] and [validation record][mvp1-validation] describe that implementation and its checks. A custom parser editor is not currently available; the application uses preconfigured readers.
+
+### Delivered in Delivery 2
+
+- Explicit Syslog RFC 5424/BSD, Netfilter/iptables LOG, HAProxy HTTP and native ModSecurity 2.x audit readers, with format-specific diagnostics and IPv4/IPv6 extraction.
+- Bounded multiline ModSecurity transactions with complete raw content, source-line ranges, source hashing and atomic rollback on cancellation or oversized records.
+- Inspect and copy reader attributes, and combine exact scalar attribute filters with source, reader, parsing and UTC filters across saved cases.
+- Keep ambiguous BSD/HAProxy dates visible with diagnostics, without guessing years or timezones.
+
+See the [Delivery 2 format contract](docs/mvp-2-formats.md), [acceptance guide](docs/mvp-2-acceptance.md) and [validation record](docs/mvp-2-validation.md). These are selected layouts, not universal firewall/WAF support. Auto recognition retains its Delivery 1 behavior; select security readers explicitly.
 
 ### Understanding parsing results
 
@@ -73,18 +82,22 @@ Warnings are counted independently of parsing status. For example, a text record
 
 ## Supported log formats
 
-| Reader        | Availability              | Supported scope                                                                                                                              |
-| ------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Apache access | Delivery 0 and Delivery 1 | Standard Common and Combined layouts; not every configurable Apache `LogFormat`.                                                             |
-| Plain text    | Delivery 0 and Delivery 1 | Uncompressed text, one retained record per source line, without structured extraction.                                                       |
-| Nginx access  | Delivery 1                | Standard Common/Combined access layouts; custom layouts and Nginx error logs are not supported.                                              |
-| JSON Lines    | Delivery 1                | One JSON object per line. Known HTTP/date aliases are normalized; original fields, including nested values, remain available for inspection. |
+| Reader               | Availability              | Supported scope                                                                                                                              |
+| -------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Apache access        | Delivery 0 and Delivery 1 | Standard Common and Combined layouts; not every configurable Apache `LogFormat`.                                                             |
+| Plain text           | Delivery 0 and Delivery 1 | Uncompressed text, one retained record per source line, without structured extraction.                                                       |
+| Nginx access         | Delivery 1                | Standard Common/Combined access layouts; custom layouts and Nginx error logs are not supported.                                              |
+| JSON Lines           | Delivery 1                | One JSON object per line. Known HTTP/date aliases are normalized; original fields, including nested values, remain available for inspection. |
+| Syslog               | Delivery 2                | RFC 5424 version 1 and BSD HOST TAG[PID]: MSG file layout; no transport framing.                                                             |
+| Netfilter / iptables | Delivery 2                | Netfilter LOG key/value payloads, bare or wrapped in supported Syslog.                                                                       |
+| HAProxy HTTP         | Delivery 2                | Standard option httplog layout, optional captured headers and supported Syslog wrappers.                                                     |
+| ModSecurity audit    | Delivery 2                | Native ModSecurity 2.x serial A–Z transactions, at most 1 MiB per event.                                                                     |
 
 Auto mode recognizes Apache-compatible access layouts; Delivery 1 also recognizes JSON objects. Apache and Nginx Combined layouts overlap, so automatic recognition cannot establish which server produced a record. Choose Nginx explicitly in Delivery 1 to label those events Nginx.
 
 In the JSON Lines reader, malformed JSON, non-object values and blank lines remain Unparsed with diagnostics. Exact JSON filters cover top-level strings, numbers and booleans. See the [reader/date rules][mvp1-formats] for aliases, duplicate-key handling and timestamp validation.
 
-Apache error logs, firewall/WAF/Syslog/HAProxy readers, binary logs and multiline grouping are not currently implemented. Future format support is listed in the [roadmap](#roadmap).
+Delivery 2 adds explicit security readers for the selected layouts above. Apache error logs, other vendor/custom firewall or WAF layouts, binary logs and arbitrary multiline grouping remain outside scope. Future format support is listed in the [roadmap](#roadmap).
 
 ## Screenshots
 
@@ -109,7 +122,7 @@ Initial supported platforms are **Ubuntu 24.04 x64** and **Windows 11 x64**. Suc
 - `dfir-log-explorer-linux`: a `.deb` package and application executable.
 - `dfir-log-explorer-windows`: an NSIS setup executable.
 
-Use the [Delivery 1 workflow](https://github.com/a-cisse/dfir-log-explorer/actions/workflows/mvp-1.yml) for the integrated version, or the [Delivery 2 review workflow](https://github.com/a-cisse/dfir-log-explorer/actions/workflows/mvp-2.yml) for the security readers proposed in PR #6. Check the branch and commit shown by the run, download your platform's artifact and extract it. In Delivery 1 v0.2.1, the setup executable (Windows), or package and executable (Linux), appear directly at the ZIP root. Artifacts depend on successful platform builds and are retained for 14 days; build locally if a suitable artifact is unavailable.
+For the new readers, use the [Delivery 2 workflow](https://github.com/a-cisse/dfir-log-explorer/actions/workflows/mvp-2.yml) and its acceptance guide. The [Delivery 1 workflow](https://github.com/a-cisse/dfir-log-explorer/actions/workflows/mvp-1.yml) remains available for manual builds of historical revisions. Check the branch and commit shown by the run, download your platform's artifact and extract it. In Delivery 1 v0.2.1, the setup executable (Windows), or package and executable (Linux), appear directly at the ZIP root. Artifacts depend on successful platform builds and are retained for 14 days; build locally if a suitable artifact is unavailable.
 
 On Ubuntu, install the `.deb` using your normal package manager. On Windows, run the setup executable normally. A fresh installation proposes `%LOCALAPPDATA%\Programs\DFIR Log Explorer` for the current user without requesting administrator elevation. Start menu shortcuts and uninstall registration are user-specific. Existing installation directories and explicitly chosen destinations are retained. Windows test packages are unsigned. Follow the [Delivery 0 acceptance guide](docs/mvp-0-acceptance.md) or [Delivery 1 acceptance guide][mvp1-acceptance] for the version you downloaded. See [build verification](docs/ci/README.md) for the integrated workflow and [Delivery 1 build verification][mvp1-builds] for the corrected downloads.
 
@@ -132,11 +145,7 @@ git clone https://github.com/a-cisse/dfir-log-explorer.git
 cd dfir-log-explorer
 ```
 
-A fresh clone checks out `main` with Delivery 1 and the integrated Statistics improvements. To reproduce the pinned Delivery 1 validation build instead of the latest `main`, optionally switch to its historical revision before installing dependencies:
-
-```sh
-git switch --detach 9684e828fbc9c84ff87a95d7504cb6f81aa934bc
-```
+A fresh clone checks out `main`. Delivery 2 is accepted for integration through PR #6; the historical implementation branch is `codex/mvp-2`. Check the revision before reproducing a validation build.
 
 Then install dependencies and launch the desktop application:
 
@@ -188,7 +197,7 @@ Shortcuts include **Ctrl/Cmd O** to import, **Ctrl/Cmd K** to focus search, arro
 
 - Sources are read-only. Accepted imports retain original bytes, including line terminators and invalid UTF-8, alongside decoded display text. Invalid UTF-8 uses replacement characters for display; original bytes remain stored.
 - Use stable source files. Size or modification-time changes detected during import cause rollback. Those checks and SHA-256 fingerprints do not constitute forensic acquisition or a complete chain-of-custody system.
-- Only uncompressed UTF-8 text is supported. Known gzip, ZIP, EVTX and UTF-16 signatures are rejected. Dedicated binary readers, additional encodings, compressed sources and multiline grouping are future work.
+- Only uncompressed UTF-8 text is supported. Known gzip, ZIP, EVTX and UTF-16 signatures are rejected. Dedicated binary readers, additional encodings, compressed sources and arbitrary multiline grouping are future work. Delivery 2 supports native ModSecurity 2.x transactions up to 1 MiB.
 - A line exceeding **1 MiB**, including its terminator, causes an explicit error and full rollback; it is not silently truncated.
 - DuckDB's **512 MB buffer-memory budget is not a process-wide RAM limit**. Original bytes and decoded text are both stored, so sufficient local disk space is required.
 - Searches scan text/fields and sorting runs in DuckDB. Unfiltered pages use event-ID boundaries; deep filtered offsets can become slower. Full-text indexing is future work.
@@ -205,15 +214,15 @@ This does not establish a verified zero-egress environment: operating-system ser
 
 The project advances through **deliveries**, retaining the former stage numbers 0–5. Each delivery needs human acceptance and the next needs a separate development authorization. There are no promised release dates or automatic merges. [Project 4](https://github.com/users/a-cisse/projects/4) and [Issues](https://github.com/a-cisse/dfir-log-explorer/issues) hold live progress, priorities, estimates and decisions; the [roadmap](docs/roadmap.md) defines scope and historical references.
 
-| Stage      | Scope and tracking                                                                                                                                                                                                                           |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Delivery 0 | Accepted and integrated: single-source exploration, Apache/text readers, parsing diagnostics, raw inspection, filters, sorting, basic statistics and timeline. Historical PRs #1 and #2 are preserved.                                       |
-| Delivery 1 | Integrated: persistent cases, multiple sources, Nginx/JSON Lines, structured/date filters and compact workspace. Historical PRs #3, #4 and #5 are preserved.                                                                                 |
-| Delivery 2 | In review: Syslog, Netfilter/iptables, HAProxy HTTP and bounded native ModSecurity audit in [PR #6](https://github.com/a-cisse/dfir-log-explorer/pull/6). Remaining acceptance: [#8](https://github.com/a-cisse/dfir-log-explorer/issues/8). |
-| Delivery 3 | Backlog: expanded timeline/statistics workflows and saved searches. [Delivery 3 — Exploration and saved searches](https://github.com/a-cisse/dfir-log-explorer/milestone/2). Basic timeline/statistics already exist.                        |
-| Delivery 4 | Backlog: local parsing profiles, preview, versioning and profile-based import. [Delivery 4 — Local parsing profiles](https://github.com/a-cisse/dfir-log-explorer/milestone/3).                                                              |
-| Delivery 5 | Backlog: measurements, justified optimization, resumable ingestion, compression and exports. [Delivery 5 — Volume, ingestion and exports](https://github.com/a-cisse/dfir-log-explorer/milestone/4).                                         |
-| To explore | Uncommitted: binary readers, correlations and annotations. [To explore — Future work to agree](https://github.com/a-cisse/dfir-log-explorer/milestone/5).                                                                                    |
+| Stage      | Scope and tracking                                                                                                                                                                                                                                                     |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Delivery 0 | Accepted and integrated: single-source exploration, Apache/text readers, parsing diagnostics, raw inspection, filters, sorting, basic statistics and timeline. Historical PRs #1 and #2 are preserved.                                                                 |
+| Delivery 1 | Integrated: persistent cases, multiple sources, Nginx/JSON Lines, structured/date filters and compact workspace. Historical PRs #3, #4 and #5 are preserved.                                                                                                           |
+| Delivery 2 | Accepted on 2026-10-19: Syslog, Netfilter/iptables, HAProxy HTTP and bounded native ModSecurity audit in [PR #6](https://github.com/a-cisse/dfir-log-explorer/pull/6). Acceptance and integration record: [#8](https://github.com/a-cisse/dfir-log-explorer/issues/8). |
+| Delivery 3 | Backlog: expanded timeline/statistics workflows and saved searches. [Delivery 3 — Exploration and saved searches](https://github.com/a-cisse/dfir-log-explorer/milestone/2). Basic timeline/statistics already exist.                                                  |
+| Delivery 4 | Backlog: local parsing profiles, preview, versioning and profile-based import. [Delivery 4 — Local parsing profiles](https://github.com/a-cisse/dfir-log-explorer/milestone/3).                                                                                        |
+| Delivery 5 | Backlog: measurements, justified optimization, resumable ingestion, compression and exports. [Delivery 5 — Volume, ingestion and exports](https://github.com/a-cisse/dfir-log-explorer/milestone/4).                                                                   |
+| To explore | Uncommitted: binary readers, correlations and annotations. [To explore — Future work to agree](https://github.com/a-cisse/dfir-log-explorer/milestone/5).                                                                                                              |
 
 Future feature Issues remain in Backlog until authorized. Necessary performance work can occur within an earlier authorized delivery. Existing `mvp-*` documentation paths, workflow IDs and branch names remain valid historical references; no retrospective development tickets have been manufactured.
 

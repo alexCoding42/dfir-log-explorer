@@ -86,7 +86,7 @@ export function DetailPanel({
       <div className="raw-heading">
         <strong>
           <FileText size={14} />
-          Original log line
+          Original log event
         </strong>
         <button className="text-button" onClick={() => void copy(detail.raw)}>
           <Copy size={13} />
@@ -116,7 +116,11 @@ export function DetailPanel({
       <div className="detail-heading">
         <div>
           <span className="eyebrow">EVENT INSPECTOR</span>
-          <h2>Line {detail.lineNumber}</h2>
+          <h2>
+            {detail.endLineNumber && detail.endLineNumber > detail.lineNumber
+              ? `Lines ${detail.lineNumber}–${detail.endLineNumber}`
+              : `Line ${detail.lineNumber}`}
+          </h2>
         </div>
         <div className="detail-navigation">
           <button
@@ -242,6 +246,54 @@ export function DetailPanel({
                 </div>
               ))}
             </dl>
+            {detail.jsonFields && Object.keys(detail.jsonFields).length > 0 && (
+              <>
+                <h3>Reader attributes / JSON fields</h3>
+                <dl className="field-list">
+                  {Object.entries(detail.jsonFields).map(([key, value]) => {
+                    const scalar =
+                      typeof value === "string" ||
+                      typeof value === "number" ||
+                      typeof value === "boolean";
+                    const text =
+                      typeof value === "string" ? value : JSON.stringify(value);
+                    return (
+                      <div key={key}>
+                        <dt>{key}</dt>
+                        <dd>
+                          <span>{text}</span>
+                          {scalar && (
+                            <div className="field-actions">
+                              <button
+                                className="icon-button"
+                                aria-label={`Copy attribute ${key}`}
+                                onClick={() => void copy(text)}
+                              >
+                                <Copy size={12} />
+                              </button>
+                              <button
+                                className="icon-button"
+                                aria-label={`Filter by attribute ${key}`}
+                                disabled={
+                                  disabled ||
+                                  key.length > 4096 ||
+                                  text.length > 4096
+                                }
+                                onClick={() =>
+                                  onJsonFilter({ key, value: text })
+                                }
+                              >
+                                <Filter size={12} />
+                              </button>
+                            </div>
+                          )}
+                        </dd>
+                      </div>
+                    );
+                  })}
+                </dl>
+              </>
+            )}
             {raw}
           </>
         )}
@@ -296,11 +348,16 @@ export function DetailPanel({
           <span>{source.provenance}</span>
           <small className="mono">SHA-256: {source.sha256}</small>
           <span>
-            Source line {detail.lineNumber} · byte offset {detail.byteOffset}
+            Source{" "}
+            {detail.endLineNumber && detail.endLineNumber > detail.lineNumber
+              ? `lines ${detail.lineNumber}–${detail.endLineNumber}`
+              : `line ${detail.lineNumber}`}{" "}
+            · byte offset {detail.byteOffset}
           </span>
           <small>
             Raw bytes are retained in the local session. Display text excludes
-            the line terminator; invalid UTF-8 uses replacement characters.
+            the final line terminator; internal line breaks are retained.
+            Invalid UTF-8 uses replacement characters.
           </small>
         </div>
       </div>

@@ -1,0 +1,30 @@
+--abc123-A--
+[15/Oct/2026:08:00:00 +0000] synthetic-1 192.0.2.10 52100 198.51.100.20 443
+--abc123-B--
+POST /synthetic-login HTTP/1.1
+Host: example.invalid
+User-Agent: SyntheticAgent/1.0
+Referer: https://example.invalid/
+
+--abc123-C--
+username=synthetic
+--abc123-F--
+HTTP/1.1 403 Forbidden
+Content-Length: 0
+
+--abc123-H--
+Message: Synthetic WAF test [id "999001"] [msg "Synthetic rule"]
+Message: Synthetic second rule [id "999002"]
+Action: Intercepted (phase 2)
+--abc123-Z--
+--def456-A--
+[15/Oct/2026:10:00:01 +0200] synthetic-2 2001:db8::10 52101 2001:db8::20 443
+--def456-B--
+GET /synthetic HTTP/1.1
+--def456-F--
+HTTP/1.1 200 OK
+--def456-Z--
+--bad789-A--
+[invalid date] synthetic-3 192.0.2.30 52102 198.51.100.20 443
+--bad789-B--
+GET /incomplete HTTP/1.1
