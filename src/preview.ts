@@ -1,6 +1,8 @@
 import sample from "./demo-data.json";
 import type {
   Bridge,
+  SavedSearch,
+  GroupCount,
   EventDetail,
   ImportProgress,
   Query,
@@ -10,6 +12,7 @@ import type {
 } from "./types";
 
 let loaded = false;
+let searches: SavedSearch[] = [];
 let cancelled = false;
 let importing = false;
 export const emptyStatistics: Statistics = {
@@ -23,6 +26,12 @@ export const emptyStatistics: Statistics = {
   uniqueIps: 0,
   responses: [0, 0, 0, 0],
   timeline: [],
+  missingIp: 0,
+  missingPath: 0,
+  topIps: [],
+  topPaths: [],
+  sourceCounts: [],
+  readerCounts: [],
 };
 function field(row: EventDetail, key: SearchField): string {
   if (key === "raw") return row.raw;
@@ -89,6 +98,31 @@ function statistics(rows: EventDetail[]): Statistics {
   stats.uniqueIps = new Set(
     rows.flatMap((row) => (row.sourceIp === null ? [] : [row.sourceIp])),
   ).size;
+  function grouped(
+    key: "sourceIp" | "path" | "sourceId" | "parser",
+  ): GroupCount[] {
+    const counts = new Map<string, number>();
+    rows.forEach((row) => {
+      if (row[key] !== null) {
+        const v = String(row[key]);
+        counts.set(v, (counts.get(v) ?? 0) + 1);
+      }
+    });
+    return [...counts]
+      .sort(([a, an], [b, bn]) => bn - an || (a < b ? -1 : a > b ? 1 : 0))
+      .slice(0, 10)
+      .map(([value, count]) => ({
+        value: [...value].slice(0, 240).join(""),
+        count,
+        filterValue: [...value].length <= 4096 ? value : null,
+      }));
+  }
+  stats.missingIp = rows.filter((row) => row.sourceIp === null).length;
+  stats.missingPath = rows.filter((row) => row.path === null).length;
+  stats.topIps = grouped("sourceIp");
+  stats.topPaths = grouped("path");
+  stats.sourceCounts = grouped("sourceId");
+  stats.readerCounts = grouped("parser");
   return stats;
 }
 export const previewBridge: Bridge = {
@@ -100,6 +134,65 @@ export const previewBridge: Bridge = {
       sources: loaded ? [sample.summary as SourceSummary] : [],
     };
   },
+  async savedSearches() {
+    return structuredClone(searches);
+  },
+  async putSavedSearch(id, name, query) {
+    name = name.trim();
+    if (
+      !name ||
+      [...name].length > 120 ||
+      searches.some(
+        (s) => s.id !== id && s.name.toLowerCase() === name.toLowerCase(),
+      ) ||
+      (id === null && searches.length >= 200) ||
+      (id !== null && !searches.some((s) => s.id === id))
+    )
+      throw new Error(
+        "Use a unique name of 1–120 characters; at most 200 searches per case.",
+      );
+    const normalized = { ...structuredClone(query), offset: 0, limit: 500 };
+    await this.query(normalized);
+    if (
+      normalized.sourceId != null &&
+      (!loaded || normalized.sourceId !== sample.summary.id)
+    )
+      throw new Error(
+        "This search refers to an unavailable source. Its filters have not been applied.",
+      );
+    const search = {
+      id: id ?? Math.max(0, ...searches.map((s) => s.id)) + 1,
+      name,
+      version: 1,
+      query: normalized,
+    };
+    if (new TextEncoder().encode(JSON.stringify(search)).length > 131072)
+      throw new Error(
+        "This search definition exceeds the 128 KiB storage limit. Shorten its filters before saving.",
+      );
+    searches = [...searches.filter((s) => s.id !== search.id), search].sort(
+      (a, b) => a.id - b.id,
+    );
+    return structuredClone(search);
+  },
+  async deleteSavedSearch(id) {
+    if (!searches.some((s) => s.id === id))
+      throw new Error("Saved search not found.");
+    searches = searches.filter((s) => s.id !== id);
+  },
+  async savedSearchQuery(id) {
+    const search = searches.find((s) => s.id === id);
+    if (!search || search.version !== 1)
+      throw new Error("Unsupported saved search.");
+    if (
+      search.query.sourceId != null &&
+      (!loaded || search.query.sourceId !== sample.summary.id)
+    )
+      throw new Error(
+        "This search refers to an unavailable source. Its filters have not been applied.",
+      );
+    return { ...structuredClone(search.query), offset: 0, limit: 500 };
+  },
   async saveCase() {
     throw new Error("Persistent cases require the desktop application.");
   },
@@ -108,6 +201,7 @@ export const previewBridge: Bridge = {
   },
   async closeCase() {
     loaded = false;
+    searches = [];
     return this.caseSummary();
   },
   async pickFile() {
@@ -184,6 +278,9 @@ export const previewBridge: Bridge = {
             (!query.fieldFilter ||
               field(row, query.fieldFilter.field) ===
                 query.fieldFilter.value) &&
+            (query.fieldFilters ?? []).every(
+              (filter) => field(row, filter.field) === filter.value,
+            ) &&
             (query.timeFrom == null ||
               (row.timestampMs !== null &&
                 row.timestampMs >= query.timeFrom)) &&

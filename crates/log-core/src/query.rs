@@ -17,6 +17,7 @@ pub enum SearchField {
     Protocol,
     Referrer,
     UserAgent,
+    Parser,
 }
 impl SearchField {
     pub fn sql(self) -> &'static str {
@@ -25,7 +26,7 @@ impl SearchField {
             Self::Raw => "message", Self::Timestamp => "timestamp", Self::SourceIp => "source_ip",
             Self::Method => "method", Self::Path => "path", Self::Status => "CAST(status AS VARCHAR)",
             Self::ResponseBytes => "CAST(response_bytes AS VARCHAR)", Self::Protocol => "protocol",
-            Self::Referrer => "referrer", Self::UserAgent => "user_agent",
+            Self::Referrer => "referrer", Self::UserAgent => "user_agent", Self::Parser => "parser",
         }
     }
 }
@@ -81,7 +82,7 @@ pub struct JsonFilter {
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(default, rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct Query {
     pub source_id: Option<u64>,
     pub parser: Option<ParserMode>,
@@ -94,6 +95,7 @@ pub struct Query {
     pub search_field: SearchField,
     pub parse_status: Option<ParseStatus>,
     pub field_filter: Option<FieldFilter>,
+    pub field_filters: Vec<FieldFilter>,
     pub time_from: Option<i64>,
     pub time_to: Option<i64>,
     pub sort_by: SortField,
@@ -115,6 +117,11 @@ impl Query {
             || self.json_filter.as_ref().is_some_and(|f| {
                 f.key.is_empty() || f.key.chars().count() > 4096 || f.value.chars().count() > 4096
             })
+            || self.field_filters.len() > 16
+            || self
+                .field_filters
+                .iter()
+                .any(|f| f.value.chars().count() > 4096 || f.field == SearchField::All)
             || self.limit == 0
             || self.limit > crate::PAGE_SIZE
             || self.offset > i64::MAX as u64
@@ -197,6 +204,10 @@ impl Query {
             clauses.push(format!("{} = ?", filter.field.sql()));
             values.push(Value::Text(filter.value.clone()));
         }
+        for filter in &self.field_filters {
+            clauses.push(format!("{} = ?", filter.field.sql()));
+            values.push(Value::Text(filter.value.clone()));
+        }
         if let Some(from) = self.time_from {
             clauses.push("timestamp_ms >= ?".into());
             values.push(Value::BigInt(from));
@@ -216,6 +227,7 @@ impl Query {
             && !self.only_warnings
             && self.parse_status.is_none()
             && self.field_filter.is_none()
+            && self.field_filters.is_empty()
             && self.time_from.is_none()
             && self.time_to.is_none()
             && self.sort_by == SortField::LineNumber
@@ -236,6 +248,20 @@ pub struct Statistics {
     pub unique_ips: u64,
     pub responses: [u64; 4],
     pub timeline: Vec<TimeBucket>,
+    pub missing_ip: u64,
+    pub missing_path: u64,
+    pub top_ips: Vec<GroupCount>,
+    pub top_paths: Vec<GroupCount>,
+    pub source_counts: Vec<GroupCount>,
+    pub reader_counts: Vec<GroupCount>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GroupCount {
+    pub value: String,
+    pub count: u64,
+    // A bounded display label is never reused as a silently truncated filter.
+    pub filter_value: Option<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -267,7 +293,7 @@ pub(crate) fn statistics(
         warnings: row.get::<_, i64>(4)? as u64, missing_timestamp: row.get::<_, i64>(5)? as u64,
         total_requests: row.get::<_, i64>(6)? as u64, unique_ips: row.get::<_, i64>(7)? as u64,
         responses: [row.get::<_, i64>(8)? as u64, row.get::<_, i64>(9)? as u64, row.get::<_, i64>(10)? as u64, row.get::<_, i64>(11)? as u64],
-        timeline: Vec::new(),
+        ..Statistics::default()
     }, row.get::<_, Option<i64>>(12)?, row.get::<_, Option<i64>>(13)?)))?;
     if let (Some(min), Some(max)) = (min, max) {
         // Bounded aggregates only: never transfer individual events to draw a chart.
@@ -307,5 +333,44 @@ pub(crate) fn statistics(
             }
         }
     }
+    stats.missing_ip = connection.query_row(
+        &format!("SELECT count(*) FROM events WHERE {predicate} AND source_ip IS NULL"),
+        params_from_iter(values.iter()),
+        |row| Ok(row.get::<_, i64>(0)? as u64),
+    )?;
+    stats.missing_path = connection.query_row(
+        &format!("SELECT count(*) FROM events WHERE {predicate} AND path IS NULL"),
+        params_from_iter(values.iter()),
+        |row| Ok(row.get::<_, i64>(0)? as u64),
+    )?;
+    stats.top_ips = grouped(connection, predicate, values, "source_ip")?;
+    stats.top_paths = grouped(connection, predicate, values, "path")?;
+    stats.source_counts = grouped(connection, predicate, values, "source_id")?;
+    stats.reader_counts = grouped(connection, predicate, values, "parser")?;
     Ok(stats)
+}
+
+fn grouped(
+    connection: &Connection,
+    predicate: &str,
+    values: &[Value],
+    column: &str,
+) -> Result<Vec<GroupCount>, EngineError> {
+    // Column names originate only from the fixed calls above; values stay parameterized.
+    let mut statement = connection.prepare(&format!(
+        "SELECT substring(value, 1, 240), n, CASE WHEN length(value) <= 4096 THEN value ELSE NULL END
+         FROM (SELECT CAST({column} AS VARCHAR) AS value, count(*) AS n FROM events
+               WHERE {predicate} AND {column} IS NOT NULL GROUP BY {column})
+         ORDER BY n DESC, value ASC LIMIT 10"
+    ))?;
+    let results = statement
+        .query_map(params_from_iter(values.iter()), |row| {
+            Ok(GroupCount {
+                value: row.get(0)?,
+                count: row.get::<_, i64>(1)? as u64,
+                filter_value: row.get(2)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(results)
 }

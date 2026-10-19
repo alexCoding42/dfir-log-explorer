@@ -29,9 +29,11 @@ def main():
         return result
 
     def click(selector):
+        wait_for(lambda: script("const el = document.querySelector(" + json.dumps(selector) + "); return !!el && !el.disabled"))
         script("document.querySelector(" + json.dumps(selector) + ").click()")
 
     def select(selector, value):
+        wait_for(lambda: script("const el = document.querySelector(" + json.dumps(selector) + "); return !!el && !el.disabled"))
         script("const el = document.querySelector(" + json.dumps(selector) + "); el.value = " + json.dumps(value) + "; el.dispatchEvent(new Event('change', {bubbles:true}))")
 
     def query(**criteria):

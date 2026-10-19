@@ -4,7 +4,7 @@
 
 A focused log exploration tool for digital forensic and incident response workflows. DFIR Log Explorer helps analysts turn collected log files into structured, searchable events, with the original log content and parsing diagnostics available alongside the results.
 
-**Project status:** **Delivery 2 (v0.3.0)** was explicitly accepted on 2026-10-19 for integration through [PR #6](https://github.com/alexCoding42/dfir-log-explorer/pull/6). It adds selected security-log readers and multiline ModSecurity audit handling to Delivery 1 and the Statistics improvements. Delivery 3 remains Backlog pending scope agreement and separate start authorization. These are early test builds, not a production release.
+**Project status:** `main` contains the accepted **Delivery 2 (v0.3.0)**, integrated through PR #6. **Delivery 3 (v0.4.0)** adds timeline navigation, investigation breakdowns and saved searches on `codex/9-11-delivery-3`, pending human review and integration. These are early test builds, not a production release.
 
 ## Overview
 
@@ -69,6 +69,15 @@ The [Delivery 1 acceptance guide][mvp1-acceptance], [reader/date rules][mvp1-for
 - Keep ambiguous BSD/HAProxy dates visible with diagnostics, without guessing years or timezones.
 
 See the [Delivery 2 format contract](docs/mvp-2-formats.md), [acceptance guide](docs/mvp-2-acceptance.md) and [validation record](docs/mvp-2-validation.md). These are selected layouts, not universal firewall/WAF support. Auto recognition retains its Delivery 1 behavior; select security readers explicitly.
+
+### Implemented in the Delivery 3 review build
+
+- Zoom into timeline intervals in Statistics, step back through previous ranges and reset time bounds while retaining other filters.
+- Inspect query-scoped top client IPs, paths, sources and readers across all result pages, then drill into the corresponding events without dropping active filters.
+- Create, find, apply, update, rename and delete named searches within a case. Search definitions retain filters and sorting after the case is saved and reopened; raw evidence is unchanged.
+- Keep existing schema-1 cases readable. Search definitions use a separately versioned optional extension created on first write; browser preview searches remain memory-only.
+
+See the [Delivery 3 acceptance guide](docs/delivery-3-acceptance.md) for exact behavior, compatibility and limitations, and the [validation record](docs/delivery-3-validation.md) for actual results. Delivery 3 requires human acceptance and separate merge authorization.
 
 ### Understanding parsing results
 
@@ -190,7 +199,7 @@ Shortcuts include **Ctrl/Cmd O** to import, **Ctrl/Cmd K** to focus search, arro
 
 - **Delivery 0:** One temporary source. A successful new import replaces the previous dataset; normal application exit removes session storage.
 - **Delivery 1:** Imports append sources. **Save case as…** retains all imported evidence; saved cases retain later successful imports automatically. Saving does not overwrite existing files. Cases use schema version 1, with no automatic migration of unknown versions.
-- Unsaved Delivery 1 cases remain temporary. A populated temporary case must be saved before switching cases through the UI. Saved cases have no source-removal function or saved-search persistence.
+- Unsaved Delivery 1 cases remain temporary. A populated temporary case must be saved before switching cases through the UI. Saved cases have no source-removal function. Delivery 3 adds per-case saved-search definitions.
 - Saved cases contain raw evidence, extracted fields, source paths and hashes without application encryption. Close a case or the application before copying/backing it up because DuckDB can use an adjacent write-ahead log. Crashes or forced termination can leave temporary storage behind; secure erasure is not implemented.
 
 ### Import and query boundaries
@@ -214,15 +223,15 @@ This does not establish a verified zero-egress environment: operating-system ser
 
 The project advances through **deliveries**, retaining the former stage numbers 0–5. Each delivery needs human acceptance and the next needs a separate development authorization. There are no promised release dates or automatic merges. [Project 4](https://github.com/users/a-cisse/projects/4) and [Issues](https://github.com/a-cisse/dfir-log-explorer/issues) hold live progress, priorities, estimates and decisions; the [roadmap](docs/roadmap.md) defines scope and historical references.
 
-| Stage      | Scope and tracking                                                                                                                                                                                                                                                     |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Delivery 0 | Accepted and integrated: single-source exploration, Apache/text readers, parsing diagnostics, raw inspection, filters, sorting, basic statistics and timeline. Historical PRs #1 and #2 are preserved.                                                                 |
-| Delivery 1 | Integrated: persistent cases, multiple sources, Nginx/JSON Lines, structured/date filters and compact workspace. Historical PRs #3, #4 and #5 are preserved.                                                                                                           |
-| Delivery 2 | Accepted on 2026-10-19: Syslog, Netfilter/iptables, HAProxy HTTP and bounded native ModSecurity audit in [PR #6](https://github.com/a-cisse/dfir-log-explorer/pull/6). Acceptance and integration record: [#8](https://github.com/a-cisse/dfir-log-explorer/issues/8). |
-| Delivery 3 | Backlog: expanded timeline/statistics workflows and saved searches. [Delivery 3 — Exploration and saved searches](https://github.com/a-cisse/dfir-log-explorer/milestone/2). Basic timeline/statistics already exist.                                                  |
-| Delivery 4 | Backlog: local parsing profiles, preview, versioning and profile-based import. [Delivery 4 — Local parsing profiles](https://github.com/a-cisse/dfir-log-explorer/milestone/3).                                                                                        |
-| Delivery 5 | Backlog: measurements, justified optimization, resumable ingestion, compression and exports. [Delivery 5 — Volume, ingestion and exports](https://github.com/a-cisse/dfir-log-explorer/milestone/4).                                                                   |
-| To explore | Uncommitted: binary readers, correlations and annotations. [To explore — Future work to agree](https://github.com/a-cisse/dfir-log-explorer/milestone/5).                                                                                                              |
+| Stage      | Scope and tracking                                                                                                                                                                                                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Delivery 0 | Accepted and integrated: single-source exploration, Apache/text readers, parsing diagnostics, raw inspection, filters, sorting, basic statistics and timeline. Historical PRs #1 and #2 are preserved.                                                                                |
+| Delivery 1 | Integrated: persistent cases, multiple sources, Nginx/JSON Lines, structured/date filters and compact workspace. Historical PRs #3, #4 and #5 are preserved.                                                                                                                          |
+| Delivery 2 | Accepted and integrated on 2026-10-19: Syslog, Netfilter/iptables, HAProxy HTTP and bounded native ModSecurity audit in [PR #6](https://github.com/a-cisse/dfir-log-explorer/pull/6). Acceptance and integration record: [#8](https://github.com/a-cisse/dfir-log-explorer/issues/8). |
+| Delivery 3 | Authorized review implementation: expanded timeline/statistics workflows and saved searches. [Delivery 3 — Exploration and saved searches](https://github.com/a-cisse/dfir-log-explorer/milestone/2). Basic timeline/statistics already exist.                                        |
+| Delivery 4 | Backlog: local parsing profiles, preview, versioning and profile-based import. [Delivery 4 — Local parsing profiles](https://github.com/a-cisse/dfir-log-explorer/milestone/3).                                                                                                       |
+| Delivery 5 | Backlog: measurements, justified optimization, resumable ingestion, compression and exports. [Delivery 5 — Volume, ingestion and exports](https://github.com/a-cisse/dfir-log-explorer/milestone/4).                                                                                  |
+| To explore | Uncommitted: binary readers, correlations and annotations. [To explore — Future work to agree](https://github.com/a-cisse/dfir-log-explorer/milestone/5).                                                                                                                             |
 
 Future feature Issues remain in Backlog until authorized. Necessary performance work can occur within an earlier authorized delivery. Existing `mvp-*` documentation paths, workflow IDs and branch names remain valid historical references; no retrospective development tickets have been manufactured.
 

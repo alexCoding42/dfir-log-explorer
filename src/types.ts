@@ -20,7 +20,8 @@ export type SearchField =
   | "responseBytes"
   | "protocol"
   | "referrer"
-  | "userAgent";
+  | "userAgent"
+  | "parser";
 export type SortField =
   | "sourceId"
   | "lineNumber"
@@ -107,10 +108,22 @@ export interface Query {
   searchField?: SearchField;
   parseStatus?: ParseStatus | null;
   fieldFilter?: FieldFilter | null;
+  fieldFilters?: FieldFilter[];
   timeFrom?: number | null;
   timeTo?: number | null;
   sortBy?: SortField;
   descending?: boolean;
+}
+export interface SavedSearch {
+  id: number;
+  name: string;
+  version: number;
+  query: Query;
+}
+export interface GroupCount {
+  value: string;
+  count: number;
+  filterValue: string | null;
 }
 export interface TimeBucket {
   startMs: number;
@@ -131,6 +144,12 @@ export interface Statistics {
   uniqueIps: number;
   responses: number[];
   timeline: TimeBucket[];
+  missingIp: number;
+  missingPath: number;
+  topIps: GroupCount[];
+  topPaths: GroupCount[];
+  sourceCounts: GroupCount[];
+  readerCounts: GroupCount[];
 }
 export interface QueryPage {
   rows: EventRow[];
@@ -143,6 +162,14 @@ export interface QueryPage {
 export interface Bridge {
   isDesktop: boolean;
   caseSummary(): Promise<CaseSummary>;
+  savedSearches(): Promise<SavedSearch[]>;
+  putSavedSearch(
+    id: number | null,
+    name: string,
+    query: Query,
+  ): Promise<SavedSearch>;
+  deleteSavedSearch(id: number): Promise<void>;
+  savedSearchQuery(id: number): Promise<Query>;
   saveCase(): Promise<CaseSummary | null>;
   openCase(): Promise<CaseSummary | null>;
   closeCase(): Promise<CaseSummary>;

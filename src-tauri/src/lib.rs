@@ -1,5 +1,6 @@
 use dfir_log_core::{
-    CaseSummary, Engine, EventDetail, ImportProgress, ParserMode, Query, QueryPage, SourceSummary,
+    CaseSummary, Engine, EngineError, EventDetail, ImportProgress, ParserMode, Query, QueryPage,
+    SavedSearch, SourceSummary,
 };
 use std::{
     io::Write,
@@ -301,6 +302,58 @@ async fn close_case(state: State<'_, AppState>) -> Result<CaseSummary, String> {
     .map_err(|_| lock_error())?
 }
 
+async fn with_search_engine<T: Send + 'static>(
+    state: State<'_, AppState>,
+    exclusive: bool,
+    operation: impl FnOnce(&Engine) -> Result<T, EngineError> + Send + 'static,
+) -> Result<T, String> {
+    let guard = if exclusive {
+        state
+            .busy
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .map_err(|_| "Wait for the current operation to finish.".to_string())?;
+        Some(BusyGuard(Arc::clone(&state.busy)))
+    } else {
+        if state.busy.load(Ordering::Acquire) {
+            return Err("Wait for the current operation to finish.".into());
+        }
+        None
+    };
+    let engine = Arc::clone(&state.engine);
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = guard;
+        let locked = engine.lock().map_err(|_| lock_error())?;
+        operation(locked.as_ref().ok_or_else(lock_error)?).map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|_| lock_error())?
+}
+
+#[tauri::command]
+async fn saved_searches(state: State<'_, AppState>) -> Result<Vec<SavedSearch>, String> {
+    with_search_engine(state, false, |engine| engine.saved_searches()).await
+}
+#[tauri::command]
+async fn put_saved_search(
+    id: Option<u64>,
+    name: String,
+    query: Query,
+    state: State<'_, AppState>,
+) -> Result<SavedSearch, String> {
+    with_search_engine(state, true, move |engine| {
+        engine.put_saved_search(id, &name, query)
+    })
+    .await
+}
+#[tauri::command]
+async fn delete_saved_search(id: u64, state: State<'_, AppState>) -> Result<(), String> {
+    with_search_engine(state, true, move |engine| engine.delete_saved_search(id)).await
+}
+#[tauri::command]
+async fn saved_search_query(id: u64, state: State<'_, AppState>) -> Result<Query, String> {
+    with_search_engine(state, false, move |engine| engine.saved_search_query(id)).await
+}
+
 pub fn run() {
     let engine = match Engine::new() {
         Ok(engine) => engine,
@@ -327,7 +380,11 @@ pub fn run() {
             case_summary,
             save_case,
             open_case,
-            close_case
+            close_case,
+            saved_searches,
+            put_saved_search,
+            delete_saved_search,
+            saved_search_query
         ])
         .build(tauri::generate_context!())
         .expect("Unable to start the desktop application")

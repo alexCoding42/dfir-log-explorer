@@ -46,6 +46,14 @@ pub enum EngineError {
     UnsupportedFormat,
     #[error("Invalid query: use a 1–500 limit, nonnegative offset, values up to 4096 characters, and a valid increasing time range.")]
     InvalidQuery,
+    #[error("Invalid saved search: use a unique name of 1–120 characters and a valid query; at most 200 searches per case.")]
+    InvalidSavedSearch,
+    #[error("This search definition exceeds the 128 KiB storage limit. Shorten its filters before saving.")]
+    SavedSearchTooLarge,
+    #[error("The saved search is missing, malformed or has an unsupported definition version.")]
+    UnsupportedSavedSearch,
+    #[error("This search refers to an unavailable source. Its filters have not been applied.")]
+    SavedSearchSourceMissing,
     #[error("The selected event does not exist in this session.")]
     EventNotFound,
     #[error("The selected file is not a supported DFIR case (schema version 1 required).")]
@@ -172,7 +180,7 @@ impl Engine {
         })
     }
 
-    fn connection(&self) -> Result<&Connection, EngineError> {
+    pub(crate) fn connection(&self) -> Result<&Connection, EngineError> {
         self.connection.as_ref().ok_or(EngineError::CaseUnavailable)
     }
 

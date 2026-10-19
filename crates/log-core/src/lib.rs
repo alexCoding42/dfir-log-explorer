@@ -7,3 +7,6 @@ mod security_formats;
 pub use engine::*;
 pub use parser::*;
 pub use query::*;
+
+mod saved_searches;
+pub use saved_searches::*;

@@ -16,6 +16,7 @@ import type {
 export const searchFields: { key: SearchField; label: string }[] = [
   { key: "all", label: "All fields + raw" },
   { key: "raw", label: "Raw log" },
+  { key: "parser", label: "Identified reader" },
   { key: "timestamp", label: "Timestamp" },
   { key: "sourceIp", label: "Client IP" },
   { key: "method", label: "HTTP method" },
@@ -29,6 +30,7 @@ export const searchFields: { key: SearchField; label: string }[] = [
 export function LogFilterBar({
   source,
   sourceSelector,
+  savedSearches,
   advanced,
   extraChips,
   advancedActive,
@@ -50,6 +52,7 @@ export function LogFilterBar({
 }: {
   source: SourceSummary;
   sourceSelector: ReactNode;
+  savedSearches: ReactNode;
   advanced: ReactNode;
   extraChips: ReactNode;
   advancedActive: boolean;
@@ -127,6 +130,7 @@ export function LogFilterBar({
           <SlidersHorizontal size={14} />
           Filters{advancedActive && <span className="live-dot" />}
         </button>
+        {savedSearches}
         {filtered && (
           <button
             className="text-button reset-filters"
