@@ -4,7 +4,7 @@
 
 A focused log exploration tool for digital forensic and incident response workflows. DFIR Log Explorer helps analysts turn collected log files into structured, searchable events, with the original log content and parsing diagnostics available alongside the results.
 
-**Project status:** `main` contains the accepted **MVP 0 (v0.1.0)**. **MVP 1 (v0.2.1)** is implemented and tested in [PR #3](https://github.com/a-cisse/dfir-log-explorer/pull/3), awaiting integration and human acceptance. Its additional capabilities are identified below as **MVP 1 review build**. These are early test builds, not a production release.
+**Project status:** `main` contains Delivery 0 and the integrated **Delivery 1 (v0.2.1)**, including the compact workspace and Statistics improvements. **Delivery 2 (v0.3.0)** is proposed in [PR #6](https://github.com/a-cisse/dfir-log-explorer/pull/6), awaiting human acceptance and integration. These are early test builds, not a production release. “Delivery” replaces the historical MVP planning label; existing file paths, branch names and application versions remain unchanged.
 
 ## Overview
 
@@ -32,7 +32,7 @@ These approaches remain useful for their own workflows. DFIR Log Explorer offers
 ## Why DFIR Log Explorer?
 
 - **Less repetitive preparation:** Built-in readers extract supported fields without requiring a new script or parsing expression for each supported dataset. Reducing time to investigation is a product objective, not a measured claim of superiority.
-- **Integrated exploration:** Read imported events, search and inspect raw content in one workspace. In the MVP 1 review build, optional filters and statistics stay out of the default reading view.
+- **Integrated exploration:** Read imported events, search and inspect raw content in one workspace. In Delivery 1, optional filters and statistics stay out of the default reading view.
 - **Visible parsing quality:** Separate successful interpretation, partial extraction and unrecognized records. Malformed lines can still be examined instead of disappearing from the results.
 - **Original content within reach:** Inspect raw text, source line numbers and byte offsets alongside extracted fields. Source hashes support comparison with the imported file.
 - **Local setup:** Log analysis uses an embedded database and packaged UI assets. It does not require an Elasticsearch, Kibana, Splunk or other externally managed log backend.
@@ -41,7 +41,7 @@ The tool is intended to complement existing workflows, including Graylog, Timesk
 
 ## Features
 
-### Available in MVP 0 on `main`
+### Foundation from Delivery 0
 
 - Import one uncompressed text source into a temporary analysis session, with automatic Apache recognition or explicit Apache/plain-text selection.
 - Search raw logs and extracted fields using case-insensitive literal substrings. Combine parsing status, warnings, exact-field and explicit UTC time filters.
@@ -51,7 +51,7 @@ The tool is intended to complement existing workflows, including Graylog, Timesk
 - Track import progress and cancel an import. Cancellation or failure rolls back the import and preserves the previous dataset.
 - Inspect the source's SHA-256 fingerprint; use Light, Dark or System themes, persistent display preferences, compact navigation and keyboard shortcuts.
 
-### Implemented in the MVP 1 review build
+### Integrated in Delivery 1
 
 - Start with a compact log table immediately after import: line, timestamp, parsing status and raw content. Open additional filters and Statistics when needed; save/open/new actions are grouped in the Case menu.
 - Save temporary analysis as a local `.dfir` case and reopen it without access to the original source files. Further imports into a saved case are retained automatically.
@@ -59,7 +59,7 @@ The tool is intended to complement existing workflows, including Graylog, Timesk
 - Select explicit Nginx access and JSON Lines readers, retaining original JSON fields and independent validation diagnostics.
 - Combine source, identified-reader, timestamp-presence and exact JSON scalar filters with the existing filters. Compare timestamps across sources using UTC instants while retaining source offsets.
 
-The [MVP 1 acceptance guide][mvp1-acceptance], [reader/date rules][mvp1-formats] and [validation record][mvp1-validation] describe that implementation and its checks. A custom parser editor is not currently available; the application uses preconfigured readers.
+The [Delivery 1 acceptance guide][mvp1-acceptance], [reader/date rules][mvp1-formats] and [validation record][mvp1-validation] describe that implementation and its checks. A custom parser editor is not currently available; the application uses preconfigured readers.
 
 ### Understanding parsing results
 
@@ -73,14 +73,14 @@ Warnings are counted independently of parsing status. For example, a text record
 
 ## Supported log formats
 
-| Reader        | Availability       | Supported scope                                                                                                                              |
-| ------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Apache access | MVP 0 and MVP 1    | Standard Common and Combined layouts; not every configurable Apache `LogFormat`.                                                             |
-| Plain text    | MVP 0 and MVP 1    | Uncompressed text, one retained record per source line, without structured extraction.                                                       |
-| Nginx access  | MVP 1 review build | Standard Common/Combined access layouts; custom layouts and Nginx error logs are not supported.                                              |
-| JSON Lines    | MVP 1 review build | One JSON object per line. Known HTTP/date aliases are normalized; original fields, including nested values, remain available for inspection. |
+| Reader        | Availability              | Supported scope                                                                                                                              |
+| ------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Apache access | Delivery 0 and Delivery 1 | Standard Common and Combined layouts; not every configurable Apache `LogFormat`.                                                             |
+| Plain text    | Delivery 0 and Delivery 1 | Uncompressed text, one retained record per source line, without structured extraction.                                                       |
+| Nginx access  | Delivery 1                | Standard Common/Combined access layouts; custom layouts and Nginx error logs are not supported.                                              |
+| JSON Lines    | Delivery 1                | One JSON object per line. Known HTTP/date aliases are normalized; original fields, including nested values, remain available for inspection. |
 
-Auto mode recognizes Apache-compatible access layouts; MVP 1 also recognizes JSON objects. Apache and Nginx Combined layouts overlap, so automatic recognition cannot establish which server produced a record. Choose Nginx explicitly in MVP 1 to label those events Nginx.
+Auto mode recognizes Apache-compatible access layouts; Delivery 1 also recognizes JSON objects. Apache and Nginx Combined layouts overlap, so automatic recognition cannot establish which server produced a record. Choose Nginx explicitly in Delivery 1 to label those events Nginx.
 
 In the JSON Lines reader, malformed JSON, non-object values and blank lines remain Unparsed with diagnostics. Exact JSON filters cover top-level strings, numbers and booleans. See the [reader/date rules][mvp1-formats] for aliases, duplicate-key handling and timestamp validation.
 
@@ -88,17 +88,17 @@ Apache error logs, firewall/WAF/Syslog/HAProxy readers, binary logs and multilin
 
 ## Screenshots
 
-These captures show the current MVP 1 v0.2.1 review build with synthetic evidence in the labeled browser preview. The default workspace prioritizes the logs; statistics and additional filters open on demand.
+These captures show the integrated Delivery 1 v0.2.1 build with synthetic evidence in the labeled browser preview. The default workspace prioritizes the logs; statistics and additional filters open on demand.
 
 Compact event exploration with raw content visible:
 
-![MVP 1 compact log table with source and parsing filters](https://raw.githubusercontent.com/a-cisse/dfir-log-explorer/9684e828fbc9c84ff87a95d7504cb6f81aa934bc/docs/images/mvp-1-minimal-light.png)
+![Delivery 1 compact log table with source and parsing filters](https://raw.githubusercontent.com/a-cisse/dfir-log-explorer/9684e828fbc9c84ff87a95d7504cb6f81aa934bc/docs/images/mvp-1-minimal-light.png)
 
 Inspecting a partially parsed event alongside the logs:
 
-![MVP 1 inspector showing the original log line and invalid timestamp diagnostic](https://raw.githubusercontent.com/a-cisse/dfir-log-explorer/9684e828fbc9c84ff87a95d7504cb6f81aa934bc/docs/images/mvp-1-minimal-inspector.png)
+![Delivery 1 inspector showing the original log line and invalid timestamp diagnostic](https://raw.githubusercontent.com/a-cisse/dfir-log-explorer/9684e828fbc9c84ff87a95d7504cb6f81aa934bc/docs/images/mvp-1-minimal-inspector.png)
 
-See the [minimal workspace report][mvp1-workspace] for layout checks and Dark mode. The [MVP 0 redesign report](docs/ui-ux-redesign.md) retains the earlier interface captures.
+See the [minimal workspace report][mvp1-workspace] for layout checks and Dark mode. The [Delivery 0 redesign report](docs/ui-ux-redesign.md) retains the earlier interface captures.
 
 ## Getting started
 
@@ -109,9 +109,9 @@ Initial supported platforms are **Ubuntu 24.04 x64** and **Windows 11 x64**. Suc
 - `dfir-log-explorer-linux`: a `.deb` package and application executable.
 - `dfir-log-explorer-windows`: an NSIS setup executable.
 
-Use the [MVP 0 workflow](https://github.com/a-cisse/dfir-log-explorer/actions/workflows/mvp-0.yml) for the integrated version, or the [MVP 1 review workflow](https://github.com/a-cisse/dfir-log-explorer/actions/workflows/mvp-1.yml) for the additional case/readers functionality. Check the branch and commit shown by the run, download your platform's artifact and extract it. In MVP 1 v0.2.1, the setup executable (Windows), or package and executable (Linux), appear directly at the ZIP root. Artifacts depend on successful platform builds and are retained for 14 days; build locally if a suitable artifact is unavailable.
+Use the [Delivery 1 workflow](https://github.com/a-cisse/dfir-log-explorer/actions/workflows/mvp-1.yml) for the integrated version, or the [Delivery 2 review workflow](https://github.com/a-cisse/dfir-log-explorer/actions/workflows/mvp-2.yml) for the security readers proposed in PR #6. Check the branch and commit shown by the run, download your platform's artifact and extract it. In Delivery 1 v0.2.1, the setup executable (Windows), or package and executable (Linux), appear directly at the ZIP root. Artifacts depend on successful platform builds and are retained for 14 days; build locally if a suitable artifact is unavailable.
 
-On Ubuntu, install the `.deb` using your normal package manager. On Windows, run the setup executable normally. A fresh installation proposes `%LOCALAPPDATA%\Programs\DFIR Log Explorer` for the current user without requesting administrator elevation. Start menu shortcuts and uninstall registration are user-specific. Existing installation directories and explicitly chosen destinations are retained. Windows test packages are unsigned. Follow the [MVP 0 acceptance guide](docs/mvp-0-acceptance.md) or [MVP 1 acceptance guide][mvp1-acceptance] for the version you downloaded. See [build verification](docs/ci/README.md) for the integrated workflow and [MVP 1 build verification][mvp1-builds] for the corrected downloads.
+On Ubuntu, install the `.deb` using your normal package manager. On Windows, run the setup executable normally. A fresh installation proposes `%LOCALAPPDATA%\Programs\DFIR Log Explorer` for the current user without requesting administrator elevation. Start menu shortcuts and uninstall registration are user-specific. Existing installation directories and explicitly chosen destinations are retained. Windows test packages are unsigned. Follow the [Delivery 0 acceptance guide](docs/mvp-0-acceptance.md) or [Delivery 1 acceptance guide][mvp1-acceptance] for the version you downloaded. See [build verification](docs/ci/README.md) for the integrated workflow and [Delivery 1 build verification][mvp1-builds] for the corrected downloads.
 
 Packaged applications do not require Rust or Node.js runtimes. They use the operating system's webview: WebKitGTK on Linux and WebView2 on Windows. The Windows package embeds the offline WebView2 installer, so installing that runtime does not require an Internet connection. The shared runtime can subsequently be maintained by Windows; bundling a fixed runtime is a future distribution improvement.
 
@@ -132,7 +132,7 @@ git clone https://github.com/a-cisse/dfir-log-explorer.git
 cd dfir-log-explorer
 ```
 
-A fresh clone checks out `main` (MVP 0). To reproduce the verified MVP 1 review implementation, switch to its revision before installing dependencies:
+A fresh clone checks out `main` with Delivery 1 and the integrated Statistics improvements. To reproduce the pinned Delivery 1 validation build instead of the latest `main`, optionally switch to its historical revision before installing dependencies:
 
 ```sh
 git switch --detach 9684e828fbc9c84ff87a95d7504cb6f81aa934bc
@@ -165,23 +165,23 @@ Open `http://127.0.0.1:1420` and choose **Explore a synthetic sample**. Browser 
 ## Usage
 
 1. Select **Auto detect** or the appropriate preconfigured reader, then choose **Import log file** in the desktop app. For a first walkthrough, use the synthetic sample.
-2. Start reading logs and check their Parsed, Partial, Unparsed and warning indicators before relying on extracted fields. MVP 1 shows raw content by default; add extracted-field columns as needed.
+2. Start reading logs and check their Parsed, Partial, Unparsed and warning indicators before relying on extracted fields. Delivery 1 shows raw content by default; add extracted-field columns as needed.
 3. Search for an IP address, request path or timestamp. In the sample, `POST /LOGIN` matches two events regardless of case.
-4. Combine exact-field, parsing or warning filters with a UTC time range. In MVP 1, open **Filters** for additional controls, or **Statistics** for aggregates and timeline intervals. Selecting an interval returns to matching logs.
+4. Combine exact-field, parsing or warning filters with a UTC time range. In Delivery 1, open **Filters** for additional controls, or **Statistics** for aggregates and timeline intervals. Selecting an interval returns to matching logs.
 5. Select an event and switch between **Details**, **Raw Log** and **Parse Diagnostics**. Check the original line and byte offset against the source when necessary.
-6. In **MVP 1**, open **Case → Save case as…** to retain the analysis, add further sources with **Import log file**, and select a source or all sources for exploration. Use **Case → Open case…** to resume the saved investigation.
+6. In **Delivery 1**, open **Case → Save case as…** to retain the analysis, add further sources with **Import log file**, and select a source or all sources for exploration. Use **Case → Open case…** to resume the saved investigation.
 
-Table/inspector timestamps retain source offsets; timeline intervals and time filters use UTC, with an inclusive start and exclusive end. Missing or invalid timestamps stay outside time ranges and the timeline. MVP 1 rejects ambiguous JSON dates and does not guess the units of numeric timestamps; see the [date rules][mvp1-formats].
+Table/inspector timestamps retain source offsets; timeline intervals and time filters use UTC, with an inclusive start and exclusive end. Missing or invalid timestamps stay outside time ranges and the timeline. Delivery 1 rejects ambiguous JSON dates and does not guess the units of numeric timestamps; see the [date rules][mvp1-formats].
 
-Shortcuts include **Ctrl/Cmd O** to import, **Ctrl/Cmd K** to focus search, arrow keys to navigate visible rows, **Enter** to inspect and **Esc** to close the inspector or help (also the Case menu in MVP 1).
+Shortcuts include **Ctrl/Cmd O** to import, **Ctrl/Cmd K** to focus search, arrow keys to navigate visible rows, **Enter** to inspect and **Esc** to close the inspector or help (also the Case menu in Delivery 1).
 
 ## Technical limits and local data handling
 
 ### Sessions and cases
 
-- **MVP 0:** One temporary source. A successful new import replaces the previous dataset; normal application exit removes session storage.
-- **MVP 1:** Imports append sources. **Save case as…** retains all imported evidence; saved cases retain later successful imports automatically. Saving does not overwrite existing files. Cases use schema version 1, with no automatic migration of unknown versions.
-- Unsaved MVP 1 cases remain temporary. A populated temporary case must be saved before switching cases through the UI. Saved cases have no source-removal function or saved-search persistence.
+- **Delivery 0:** One temporary source. A successful new import replaces the previous dataset; normal application exit removes session storage.
+- **Delivery 1:** Imports append sources. **Save case as…** retains all imported evidence; saved cases retain later successful imports automatically. Saving does not overwrite existing files. Cases use schema version 1, with no automatic migration of unknown versions.
+- Unsaved Delivery 1 cases remain temporary. A populated temporary case must be saved before switching cases through the UI. Saved cases have no source-removal function or saved-search persistence.
 - Saved cases contain raw evidence, extracted fields, source paths and hashes without application encryption. Close a case or the application before copying/backing it up because DuckDB can use an adjacent write-ahead log. Crashes or forced termination can leave temporary storage behind; secure erasure is not implemented.
 
 ### Import and query boundaries
@@ -192,30 +192,30 @@ Shortcuts include **Ctrl/Cmd O** to import, **Ctrl/Cmd K** to focus search, arro
 - A line exceeding **1 MiB**, including its terminator, causes an explicit error and full rollback; it is not silently truncated.
 - DuckDB's **512 MB buffer-memory budget is not a process-wide RAM limit**. Original bytes and decoded text are both stored, so sufficient local disk space is required.
 - Searches scan text/fields and sorting runs in DuckDB. Unfiltered pages use event-ID boundaries; deep filtered offsets can become slower. Full-text indexing is future work.
-- List fields are bounded previews, including URLs and user agents. Selecting an event returns its complete extracted fields and raw text; MVP 1 returns full JSON objects only in event details.
+- List fields are bounded previews, including URLs and user agents. Selecting an event returns its complete extracted fields and raw text; Delivery 1 returns full JSON objects only in event details.
 - One import runs at a time. Queries and event details are unavailable during import. Cancellation or failure preserves the previous dataset/sources.
 
 ### Local operation
 
 Analysis runs locally without an account, API key or cloud backend. The application has no telemetry, remote UI resources, remote parser downloads or automatic application updater. DuckDB external access and automatic extension downloads are disabled. Dependency downloads during development/building are separate from application runtime.
 
-This does not establish a verified zero-egress environment: operating-system services, antivirus and the shared WebView2 runtime have their own behavior. Interactive Windows acceptance and a fresh native/offline traffic audit were not performed for MVP 1. Read the [privacy notes](docs/privacy.md) for MVP 0 and the [MVP 1 privacy notes][mvp1-privacy] for saved-case handling.
+This does not establish a verified zero-egress environment: operating-system services, antivirus and the shared WebView2 runtime have their own behavior. Interactive Windows acceptance and a fresh native/offline traffic audit were not performed for Delivery 1. Read the [privacy notes](docs/privacy.md) for Delivery 0 and the [Delivery 1 privacy notes][mvp1-privacy] for saved-case handling.
 
 ## Roadmap
 
-The long-term direction is a local investigation workspace with more validated readers and richer exploration of collected evidence. New functionality is delivered incrementally, with documented checks and limitations. Human acceptance is required before starting the next MVP; there are no promised release dates.
+The project advances through **deliveries**, retaining the former stage numbers 0–5. Each delivery needs human acceptance and the next needs a separate development authorization. There are no promised release dates or automatic merges. [Project 4](https://github.com/users/a-cisse/projects/4) and [Issues](https://github.com/a-cisse/dfir-log-explorer/issues) hold live progress, priorities, estimates and decisions; the [roadmap](docs/roadmap.md) defines scope and historical references.
 
-| Stage | Status and scope                                                                                                                                                                                                                                    |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| MVP 0 | Accepted and integrated: temporary single-source exploration, Apache/text readers, transparent parsing and raw inspection. The UI redesign also added basic structured/time filters, global sorting, statistics and a bounded interactive timeline. |
-| MVP 1 | Implemented in review: persistent cases, multiple sources, Nginx/JSON Lines readers, additional structured filters and date/time handling, with a compact default log view and flat download archives.                                              |
-| MVP 2 | Planned: selected firewall/WAF/Syslog/HAProxy formats and necessary multiline handling.                                                                                                                                                             |
-| MVP 3 | Planned: expanded timeline/statistics workflows and saved searches; basic timeline/statistics are already available.                                                                                                                                |
-| MVP 4 | Planned: custom local parsing profiles with previews and versioning.                                                                                                                                                                                |
-| MVP 5 | Planned: measured large-volume optimization, resumable ingestion, compression and exports.                                                                                                                                                          |
-| Later | Subject to agreement: binary readers, correlations, annotations and additional validated requirements.                                                                                                                                              |
+| Stage      | Scope and tracking                                                                                                                                                                                                                           |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Delivery 0 | Accepted and integrated: single-source exploration, Apache/text readers, parsing diagnostics, raw inspection, filters, sorting, basic statistics and timeline. Historical PRs #1 and #2 are preserved.                                       |
+| Delivery 1 | Integrated: persistent cases, multiple sources, Nginx/JSON Lines, structured/date filters and compact workspace. Historical PRs #3, #4 and #5 are preserved.                                                                                 |
+| Delivery 2 | In review: Syslog, Netfilter/iptables, HAProxy HTTP and bounded native ModSecurity audit in [PR #6](https://github.com/a-cisse/dfir-log-explorer/pull/6). Remaining acceptance: [#8](https://github.com/a-cisse/dfir-log-explorer/issues/8). |
+| Delivery 3 | Backlog: expanded timeline/statistics workflows and saved searches. [Delivery 3 — Exploration and saved searches](https://github.com/a-cisse/dfir-log-explorer/milestone/2). Basic timeline/statistics already exist.                        |
+| Delivery 4 | Backlog: local parsing profiles, preview, versioning and profile-based import. [Delivery 4 — Local parsing profiles](https://github.com/a-cisse/dfir-log-explorer/milestone/3).                                                              |
+| Delivery 5 | Backlog: measurements, justified optimization, resumable ingestion, compression and exports. [Delivery 5 — Volume, ingestion and exports](https://github.com/a-cisse/dfir-log-explorer/milestone/4).                                         |
+| To explore | Uncommitted: binary readers, correlations and annotations. [To explore — Future work to agree](https://github.com/a-cisse/dfir-log-explorer/milestone/5).                                                                                    |
 
-Performance work can occur within each MVP when required for its acceptance. See the [integrated roadmap](docs/roadmap.md) and the [MVP 1 delivery roadmap][mvp1-roadmap].
+Future feature Issues remain in Backlog until authorized. Necessary performance work can occur within an earlier authorized delivery. Existing `mvp-*` documentation paths, workflow IDs and branch names remain valid historical references; no retrospective development tickets have been manufactured.
 
 ## Contributing
 
@@ -248,7 +248,7 @@ The bundled preview fixture is generated by the same Rust engine used in the des
 cargo run -p dfir-log-core --example export_demo --locked > src/demo-data.json
 ```
 
-Additional documentation: [architecture](docs/architecture.md), [UI/UX audit](docs/ui-ux-audit.md), [redesign delivery report](docs/ui-ux-redesign.md), [performance](docs/performance.md), and [MVP 1 architecture][mvp1-architecture].
+Additional documentation: [architecture](docs/architecture.md), [UI/UX audit](docs/ui-ux-audit.md), [redesign delivery report](docs/ui-ux-redesign.md), [performance](docs/performance.md), and [Delivery 1 architecture][mvp1-architecture].
 
 ## License and acknowledgments
 
