@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { version } from "../package.json";
 import {
   Activity,
   ArrowRight,
@@ -183,8 +184,37 @@ export function SettingsView({
   onToggle: () => void;
   onHelp: () => void;
 }) {
+  const [copyMessage, setCopyMessage] = useState("");
+  async function copyVersion() {
+    try {
+      await navigator.clipboard.writeText(`DFIR Log Explorer ${version}`);
+      setCopyMessage("Version copied to clipboard.");
+    } catch {
+      setCopyMessage(
+        "Clipboard unavailable. Select the version and copy it manually.",
+      );
+    }
+  }
   return (
     <section className="secondary-view">
+      <section aria-labelledby="about-heading">
+        <h2 id="about-heading">About</h2>
+        <div className="setting-row">
+          <div>
+            <strong>DFIR Log Explorer</strong>
+            <p>
+              Version <span>{version}</span>
+            </p>
+          </div>
+          <button
+            className="secondary-button"
+            onClick={() => void copyVersion()}
+          >
+            Copy version
+          </button>
+        </div>
+        <p role="status">{copyMessage}</p>
+      </section>
       <h2>Appearance</h2>
       <div className="setting-row">
         <div>

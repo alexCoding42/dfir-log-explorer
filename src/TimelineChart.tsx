@@ -16,6 +16,11 @@ export function TimelineChart({
   available,
   pending,
   filtered,
+  timeRange,
+  onZoom,
+  onBack,
+  onReset,
+  canBack,
 }: {
   stats: Statistics;
   onRange: (from: number, to: number) => void;
@@ -23,7 +28,13 @@ export function TimelineChart({
   available: boolean;
   pending: boolean;
   filtered: boolean;
+  timeRange: [number | null, number | null];
+  onZoom: (from: number, to: number) => void;
+  onBack: () => void;
+  onReset: () => void;
+  canBack: boolean;
 }) {
+  const [action, setAction] = useState<"logs" | "zoom">("logs");
   const [expanded, setExpanded] = useState(true);
   const [view, setView] = useState<"parsing" | "http">("parsing");
   const [hovered, setHovered] = useState<number | null>(null);
@@ -102,6 +113,41 @@ export function TimelineChart({
           </div>
         )}
       </div>
+      {expanded && (
+        <div className="timeline-navigation">
+          <label>
+            Interval action{" "}
+            <select
+              aria-label="Timeline interval action"
+              value={action}
+              onChange={(e) => setAction(e.target.value as "logs" | "zoom")}
+              disabled={disabled}
+            >
+              <option value="logs">View logs</option>
+              <option value="zoom">Zoom in</option>
+            </select>
+          </label>
+          <button
+            className="secondary-button"
+            disabled={disabled || !canBack}
+            onClick={onBack}
+          >
+            Previous time range
+          </button>
+          <button
+            className="text-button"
+            disabled={disabled || timeRange.every((v) => v === null)}
+            onClick={onReset}
+          >
+            Reset time range
+          </button>
+          <p>
+            {timeRange.some((v) => v !== null)
+              ? `${timeRange[0] === null ? "Unbounded start" : utc(timeRange[0])} → ${timeRange[1] === null ? "Unbounded end" : utc(timeRange[1])} (end excluded)`
+              : "All timestamps · select Zoom in to refine an interval"}
+          </p>
+        </div>
+      )}
       {expanded &&
         (!available ? (
           <div className="timeline-empty" role="status">
@@ -163,7 +209,12 @@ export function TimelineChart({
                       onMouseEnter={() => setHovered(bucket.startMs)}
                       onFocus={() => setFocused(bucket.startMs)}
                       onBlur={() => setFocused(null)}
-                      onClick={() => onRange(bucket.startMs, bucket.endMs)}
+                      onClick={() =>
+                        (action === "zoom" ? onZoom : onRange)(
+                          Math.max(bucket.startMs, timeRange[0] ?? -Infinity),
+                          Math.min(bucket.endMs, timeRange[1] ?? Infinity),
+                        )
+                      }
                     >
                       {values[i].map((value, j) => (
                         <span
@@ -201,7 +252,11 @@ export function TimelineChart({
                   </span>
                 ))}
               </div>
-              <p>Click an interval to view its logs.</p>
+              <p>
+                {action === "zoom"
+                  ? "Click an interval to zoom in. Other filters stay active."
+                  : "Click an interval to view its logs."}
+              </p>
             </div>
             {view === "http" && (
               <p className="timeline-scope-note">

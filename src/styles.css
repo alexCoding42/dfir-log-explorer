@@ -1359,9 +1359,6 @@ kbd {
   color: var(--border-strong);
   margin: 0 6px;
 }
-.footer-version {
-  color: var(--faint);
-}
 .footer-notice {
   min-width: 0;
   overflow: hidden;
@@ -2416,5 +2413,129 @@ kbd {
 @media (max-width: 1100px) {
   .detail-panel {
     top: 94px;
+  }
+}
+
+/* Investigation tools stay out of the default reading surface. */
+.saved-search-control {
+  position: relative;
+  flex-shrink: 0;
+}
+.saved-search-panel {
+  position: absolute;
+  z-index: 30;
+  right: 0;
+  top: 100%;
+  width: min(440px, 80vw);
+  max-height: 65vh;
+  overflow: auto;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 36px #0003;
+}
+.saved-search-panel label {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+}
+.saved-search-panel input,
+.saved-search-panel select {
+  width: 100%;
+  min-width: 0;
+  padding: 8px;
+}
+.saved-search-panel p,
+.investigation-statistics > p {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.saved-search-actions,
+.timeline-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.saved-search-actions {
+  margin: 14px 0;
+}
+.delete-search-confirmation {
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.investigation-statistics {
+  margin: 24px 0;
+}
+.breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 14px;
+}
+.breakdown-card {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  min-width: 0;
+}
+.breakdown-card h4 {
+  margin: 0 0 12px;
+}
+.breakdown-card ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.breakdown-value {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 8px;
+  text-align: left;
+  border-radius: 5px;
+}
+.breakdown-value:hover {
+  background: var(--hover);
+}
+.breakdown-value span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.breakdown-value strong {
+  flex-shrink: 0;
+}
+.breakdown-card p,
+.statistics-filter-context {
+  font-size: 12px;
+  color: var(--muted);
+}
+.timeline-navigation {
+  margin: 16px 0;
+}
+.timeline-navigation label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.timeline-navigation p {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  .breakdown-grid {
+    grid-template-columns: 1fr;
   }
 }

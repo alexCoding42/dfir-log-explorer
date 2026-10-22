@@ -22,6 +22,11 @@ import { HelpDialog } from "./HelpDialog";
 import type { View } from "./workspace";
 import { DetailPanel } from "./DetailPanel";
 import { EventTable } from "./EventTable";
+import { SavedSearches } from "./SavedSearches";
+import {
+  InvestigationStatistics,
+  type Dimension,
+} from "./InvestigationStatistics";
 import { ParsingSummary } from "./ParsingSummary";
 import { TimelineChart } from "./TimelineChart";
 import { LogFilterBar } from "./LogFilterBar";
@@ -38,6 +43,7 @@ import type {
   ParserMode,
   ParseStatus,
   QueryPage,
+  Query,
   SearchField,
   SortField,
   SourceSummary,
@@ -60,6 +66,12 @@ const emptyPage: QueryPage = {
     uniqueIps: 0,
     responses: [0, 0, 0, 0],
     timeline: [],
+    missingIp: 0,
+    missingPath: 0,
+    topIps: [],
+    topPaths: [],
+    sourceCounts: [],
+    readerCounts: [],
   },
 };
 export function App({ bridge }: { bridge: Bridge }) {
@@ -119,6 +131,10 @@ export function App({ bridge }: { bridge: Bridge }) {
   const [onlyWarnings, setOnlyWarnings] = useState(false);
   const [parseStatus, setParseStatus] = useState<ParseStatus | null>(null);
   const [fieldFilter, setFieldFilter] = useState<FieldFilter | null>(null);
+  const [fieldFilters, setFieldFilters] = useState<FieldFilter[]>([]);
+  const [timeHistory, setTimeHistory] = useState<
+    [number | null, number | null][]
+  >([]);
   const [timeRange, setTimeRange] = useState<[number | null, number | null]>([
     null,
     null,
@@ -165,6 +181,8 @@ export function App({ bridge }: { bridge: Bridge }) {
     setScope("all");
     setFieldFilter(null);
     setTimeRange([null, null]);
+    setTimeHistory([]);
+    setFieldFilters([]);
     setOffset(0);
   }, []);
   useEffect(() => {
@@ -187,6 +205,7 @@ export function App({ bridge }: { bridge: Bridge }) {
     onlyWarnings,
     parseStatus,
     fieldFilter,
+    fieldFilters,
     timeRange,
     sortBy,
     descending,
@@ -208,6 +227,7 @@ export function App({ bridge }: { bridge: Bridge }) {
         onlyWarnings,
         parseStatus,
         fieldFilter,
+        fieldFilters,
         timeFrom: timeRange[0],
         timeTo: timeRange[1],
         sortBy,
@@ -245,6 +265,7 @@ export function App({ bridge }: { bridge: Bridge }) {
     onlyWarnings,
     parseStatus,
     fieldFilter,
+    fieldFilters,
     timeRange,
     sortBy,
     descending,
@@ -439,8 +460,82 @@ export function App({ bridge }: { bridge: Bridge }) {
   }
   function rangeFilter(range: [number | null, number | null]) {
     setTimeRange(range);
+    setTimeHistory([]);
     setOffset(0);
   }
+  const currentQuery: Query = {
+    sourceId,
+    parser: readerFilter,
+    hasTimestamp,
+    jsonFilter,
+    search,
+    searchField: scope,
+    onlyWarnings,
+    parseStatus,
+    fieldFilter,
+    fieldFilters,
+    timeFrom: timeRange[0],
+    timeTo: timeRange[1],
+    sortBy,
+    descending,
+    offset: 0,
+    limit: PAGE_SIZE,
+  };
+  function applySearch(query: Query) {
+    setSourceId(query.sourceId ?? null);
+    setReaderFilter(query.parser ?? null);
+    setHasTimestamp(query.hasTimestamp ?? null);
+    setJsonFilter(query.jsonFilter ?? null);
+    setSearch(query.search);
+    setDebouncedSearch(query.search);
+    setScope(query.searchField ?? "all");
+    setOnlyWarnings(query.onlyWarnings);
+    setParseStatus(query.parseStatus ?? null);
+    setFieldFilter(query.fieldFilter ?? null);
+    setFieldFilters(query.fieldFilters ?? []);
+    setTimeRange([query.timeFrom ?? null, query.timeTo ?? null]);
+    setTimeHistory([]);
+    setSortBy(query.sortBy ?? "lineNumber");
+    setDescending(query.descending ?? false);
+    setOffset(0);
+    closeDetails();
+    setView("Explore");
+    setNotice("Saved search applied.");
+  }
+  function drillDown(dimension: Dimension, value: string) {
+    if (dimension === "sourceId") setSourceId(Number(value));
+    else if (
+      !fieldFilters.some((f) => f.field === dimension && f.value === value)
+    ) {
+      if (fieldFilters.length >= 16) {
+        setError(
+          "Remove an investigation filter before adding another (maximum 16).",
+        );
+        return;
+      }
+      setFieldFilters([...fieldFilters, { field: dimension, value }]);
+    }
+    setOffset(0);
+    setView("Explore");
+  }
+  const investigationChips = fieldFilters.length > 0 && (
+    <div className="filter-chips" aria-label="Investigation filters">
+      {fieldFilters.map((filter, index) => (
+        <button
+          key={index}
+          className="filter-chip"
+          disabled={disabled}
+          title={filter.value}
+          onClick={() => {
+            setFieldFilters(fieldFilters.filter((_, i) => i !== index));
+            setOffset(0);
+          }}
+        >
+          {filter.field} = {filter.value.slice(0, 80)} ×
+        </button>
+      ))}
+    </div>
+  );
   const filtered =
     sourceId !== null ||
     readerFilter !== null ||
@@ -450,6 +545,7 @@ export function App({ bridge }: { bridge: Bridge }) {
     onlyWarnings ||
     parseStatus !== null ||
     fieldFilter !== null ||
+    fieldFilters.length > 0 ||
     timeRange.some((v) => v !== null);
   const percent =
     progress && progress.totalBytes > 0
@@ -583,6 +679,17 @@ export function App({ bridge }: { bridge: Bridge }) {
                 <section className="explorer-card">
                   <LogFilterBar
                     source={source}
+                    savedSearches={
+                      <SavedSearches
+                        bridge={bridge}
+                        info={caseInfo}
+                        query={currentQuery}
+                        disabled={disabled}
+                        onApply={applySearch}
+                        onBusy={setPicking}
+                        onError={setError}
+                      />
+                    }
                     sourceSelector={
                       <label className="source-selector">
                         <span>Source</span>
@@ -637,49 +744,52 @@ export function App({ bridge }: { bridge: Bridge }) {
                       />
                     }
                     extraChips={
-                      (readerFilter !== null ||
-                        hasTimestamp !== null ||
-                        jsonFilter !== null) && (
-                        <div className="filter-chips">
-                          {readerFilter && (
-                            <button
-                              className="filter-chip"
-                              disabled={disabled}
-                              onClick={() => {
-                                setReaderFilter(null);
-                                setOffset(0);
-                              }}
-                            >
-                              Reader: {readerFilter.replaceAll("_", " ")} ×
-                            </button>
-                          )}
-                          {hasTimestamp !== null && (
-                            <button
-                              className="filter-chip"
-                              disabled={disabled}
-                              onClick={() => {
-                                setHasTimestamp(null);
-                                setOffset(0);
-                              }}
-                            >
-                              Timestamp:{" "}
-                              {hasTimestamp ? "valid" : "missing / invalid"} ×
-                            </button>
-                          )}
-                          {jsonFilter && (
-                            <button
-                              className="filter-chip"
-                              disabled={disabled}
-                              onClick={() => {
-                                setJsonFilter(null);
-                                setOffset(0);
-                              }}
-                            >
-                              {jsonFilter.key} = {jsonFilter.value} ×
-                            </button>
-                          )}
-                        </div>
-                      )
+                      <>
+                        {investigationChips}
+                        {(readerFilter !== null ||
+                          hasTimestamp !== null ||
+                          jsonFilter !== null) && (
+                          <div className="filter-chips">
+                            {readerFilter && (
+                              <button
+                                className="filter-chip"
+                                disabled={disabled}
+                                onClick={() => {
+                                  setReaderFilter(null);
+                                  setOffset(0);
+                                }}
+                              >
+                                Reader: {readerFilter.replaceAll("_", " ")} ×
+                              </button>
+                            )}
+                            {hasTimestamp !== null && (
+                              <button
+                                className="filter-chip"
+                                disabled={disabled}
+                                onClick={() => {
+                                  setHasTimestamp(null);
+                                  setOffset(0);
+                                }}
+                              >
+                                Timestamp:{" "}
+                                {hasTimestamp ? "valid" : "missing / invalid"} ×
+                              </button>
+                            )}
+                            {jsonFilter && (
+                              <button
+                                className="filter-chip"
+                                disabled={disabled}
+                                onClick={() => {
+                                  setJsonFilter(null);
+                                  setOffset(0);
+                                }}
+                              >
+                                {jsonFilter.key} = {jsonFilter.value} ×
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </>
                     }
                     status={parseStatus}
                     onStatus={statusFilter}
@@ -862,12 +972,55 @@ export function App({ bridge }: { bridge: Bridge }) {
                   active={parseStatus}
                   onFilter={statusFilter}
                 />
+                <div className="statistics-filter-context">
+                  <p>
+                    Active search: {search || "All events"} · Source:{" "}
+                    {sourceId === null ? "All sources" : `#${sourceId}`} ·
+                    Reader: {readerFilter ?? "All readers"}
+                    {parseStatus && ` · Parsing: ${parseStatus}`}
+                    {onlyWarnings && " · With warnings"}
+                    {hasTimestamp !== null &&
+                      ` · Timestamp: ${hasTimestamp ? "valid" : "missing / invalid"}`}
+                    {scope !== "all" && ` · Search field: ${scope}`}
+                    {fieldFilter &&
+                      ` · ${fieldFilter.field} = ${fieldFilter.value}`}
+                    {jsonFilter && ` · ${jsonFilter.key} = ${jsonFilter.value}`}
+                  </p>
+                  {investigationChips}
+                </div>
+                <InvestigationStatistics
+                  stats={page.statistics}
+                  sources={caseInfo.sources}
+                  available={pageAvailable && !loading && !disabled}
+                  pending={loading || disabled}
+                  disabled={disabled || loading}
+                  onSelect={drillDown}
+                />
                 <TimelineChart
                   stats={page.statistics}
                   filtered={filtered}
                   available={pageAvailable && !loading && !busy}
                   pending={loading || busy}
-                  disabled={busy || loading}
+                  disabled={disabled || loading}
+                  timeRange={timeRange}
+                  canBack={timeHistory.length > 0}
+                  onBack={() => {
+                    const previous = timeHistory.at(-1);
+                    if (previous) {
+                      setTimeRange(previous);
+                      setTimeHistory(timeHistory.slice(0, -1));
+                      setOffset(0);
+                    }
+                  }}
+                  onReset={() => rangeFilter([null, null])}
+                  onZoom={(from, to) => {
+                    setTimeHistory((history) => [
+                      ...history.slice(-19),
+                      timeRange,
+                    ]);
+                    setTimeRange([from, to]);
+                    setOffset(0);
+                  }}
                   onRange={(from, to) => {
                     rangeFilter([from, to]);
                     setView("Explore");
@@ -911,7 +1064,7 @@ export function App({ bridge }: { bridge: Bridge }) {
             <LockKeyhole size={11} />
             Local processing
           </span>
-          {notice && !busy ? (
+          {notice && !busy && (
             <span role="status" className="footer-notice">
               {notice}
               <button
@@ -921,10 +1074,6 @@ export function App({ bridge }: { bridge: Bridge }) {
               >
                 <X size={12} />
               </button>
-            </span>
-          ) : (
-            <span>
-              DFIR Log Explorer <span className="footer-version">v0.3.0</span>
             </span>
           )}
         </footer>

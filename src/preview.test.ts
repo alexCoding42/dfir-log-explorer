@@ -126,3 +126,73 @@ it("keeps persistent cases behind the native bridge and combines source/date/par
   await previewBridge.closeCase();
   expect((await previewBridge.query(base)).total).toBe(0);
 });
+
+it("counts complete breakdowns and adds exact drill-down filters", async () => {
+  await previewBridge.closeCase();
+  await previewBridge.importDemo(() => {});
+  const base = { search: "", onlyWarnings: false, offset: 0, limit: 1 };
+  const page = await previewBridge.query(base);
+  expect(page.statistics.topIps[0]).toMatchObject({
+    value: "198.51.100.24",
+    count: 3,
+  });
+  expect(page.statistics.sourceCounts).toEqual([
+    { value: "1", count: 13, filterValue: "1" },
+  ]);
+  expect(page.statistics.missingIp).toBe(1);
+  for (const group of page.statistics.topIps) {
+    const scoped = await previewBridge.query({
+      ...base,
+      fieldFilters: [{ field: "sourceIp", value: group.filterValue! }],
+    });
+    expect(scoped.total).toBe(group.count);
+  }
+  const and = await previewBridge.query({
+    ...base,
+    fieldFilter: { field: "method", value: "POST" },
+    fieldFilters: [{ field: "sourceIp", value: "198.51.100.24" }],
+  });
+  expect(and.total).toBe(2);
+});
+
+it("keeps preview saved searches in memory, restores parameters, and clears them with the case", async () => {
+  await previewBridge.closeCase();
+  await previewBridge.importDemo(() => {});
+  const query = {
+    search: "login",
+    searchField: "path" as const,
+    onlyWarnings: false,
+    offset: 100,
+    limit: 1,
+    sortBy: "status" as const,
+    descending: true,
+    sourceId: 1,
+    fieldFilters: [{ field: "method" as const, value: "POST" }],
+  };
+  const saved = await previewBridge.putSavedSearch(null, " Login ", query);
+  const restored = await previewBridge.savedSearchQuery(saved.id);
+  expect(restored).toMatchObject({ ...query, offset: 0, limit: 500 });
+  expect((await previewBridge.query(restored)).total).toBe(2);
+  await expect(
+    previewBridge.putSavedSearch(null, "LOGIN", query),
+  ).rejects.toThrow("unique name");
+  await expect(
+    previewBridge.putSavedSearch(null, "Missing source", {
+      ...query,
+      sourceId: 999,
+    }),
+  ).rejects.toThrow("unavailable source");
+  const list = await previewBridge.savedSearches();
+  list[0].query.search = "mutated";
+  expect((await previewBridge.savedSearchQuery(saved.id)).search).toBe("login");
+  await previewBridge.putSavedSearch(saved.id, "Renamed", {
+    ...query,
+    search: "health",
+  });
+  expect((await previewBridge.savedSearches())[0].name).toBe("Renamed");
+  await previewBridge.deleteSavedSearch(saved.id);
+  expect(await previewBridge.savedSearches()).toEqual([]);
+  await previewBridge.putSavedSearch(null, "Transient", query);
+  await previewBridge.closeCase();
+  expect(await previewBridge.savedSearches()).toEqual([]);
+});
