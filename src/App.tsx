@@ -1064,7 +1064,7 @@ export function App({ bridge }: { bridge: Bridge }) {
             <LockKeyhole size={11} />
             Local processing
           </span>
-          {notice && !busy ? (
+          {notice && !busy && (
             <span role="status" className="footer-notice">
               {notice}
               <button
@@ -1074,10 +1074,6 @@ export function App({ bridge }: { bridge: Bridge }) {
               >
                 <X size={12} />
               </button>
-            </span>
-          ) : (
-            <span>
-              DFIR Log Explorer <span className="footer-version">v0.4.0</span>
             </span>
           )}
         </footer>

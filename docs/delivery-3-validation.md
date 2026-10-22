@@ -40,3 +40,11 @@ The native workflows use an isolated Xvfb display, DBus session, tauri-driver, s
 - Aggregates still scan uncached query scopes; top lists contain at most ten values per dimension, and missing values are counted separately. See the [acceptance guide](delivery-3-acceptance.md) for exact filtering, payload and resource boundaries.
 - Evidence schema 1 remains readable. The optional saved-search extension uses independent definition version 1; unknown definitions are errors, not automatic migrations. Searches and cases remain unencrypted.
 - Human Delivery 3 acceptance and explicit merge authorization remain required. No merge or Delivery 4 implementation is authorized by these checks.
+
+## Settings About follow-up — October 22, 2026
+
+The user requested moving the application version to Settings → About on the same pending Delivery 3 branch/PR. Issue #26 tracks this refinement. About shows the application name and version from frontend package metadata, provides Copy version with success/unavailable feedback, and remains accessible before import and while notifications are displayed. The footer version and its unused style were removed; local-processing status and notification dismissal remain.
+
+Executed for this frontend-only follow-up: `npm run build` passed; `npm test` passed (five tests); `npm run format:check` and `git diff --check` passed. The existing Chromium navigation/theme/evidence/desktop-dimensions scenario passed. A browser inspection at 1280×720 verified About before import, version 0.4.0, the exact copied text, clipboard-unavailable feedback, visibility with an import notification, and absence of version text in the footer before/after dismissing that notification. No new committed tests were added for this small reversible UI refinement.
+
+Rust tests, native desktop workflows, installer builds and interactive Windows acceptance were not rerun locally for this follow-up. Their earlier results above apply to the original Delivery 3 implementation, not a new native run. New automatic PR checks are reported separately in Issue #26/PR #25; human acceptance and merge authorization remain required.

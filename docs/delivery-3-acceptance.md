@@ -51,6 +51,13 @@ Human checks:
 - [ ] Open a Delivery 1/2 case without searches; read it and then save its first search. Verify evidence compatibility.
 - [ ] Check duplicate/empty names, unavailable sources and unsupported definition errors. Check that queries do not leak between cases or into browser preferences.
 
+## Application version
+
+Open **Settings → About** to read the application name and version, then use **Copy version** when reporting an issue. The version comes from the packaged frontend's package metadata. It remains accessible with no source imported and while footer notifications are displayed. The footer shows local case status and notifications; version information is available in Settings.
+
+- [ ] Confirm that Settings → About displays version 0.4.0 and Copy version copies `DFIR Log Explorer 0.4.0`.
+- [ ] Check the version before import and after a notification appears; dismissing a footer notification does not reveal another version label.
+
 ## Review boundary
 
 Automated results are recorded separately in [the validation record](delivery-3-validation.md). Interactive Windows acceptance and a fresh native offline-traffic audit are distinct checks. No parser profiles, new readers, annotations, correlations, exports, compression or resumable ingestion are included. Human acceptance and explicit merge authorization are required before integration; Delivery 4 requires a separate start instruction.

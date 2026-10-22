@@ -1359,9 +1359,6 @@ kbd {
   color: var(--border-strong);
   margin: 0 6px;
 }
-.footer-version {
-  color: var(--faint);
-}
 .footer-notice {
   min-width: 0;
   overflow: hidden;
