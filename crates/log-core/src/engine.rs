@@ -1,5 +1,6 @@
 use crate::{
-    parse_line, query::statistics, ParseStatus, ParsedFields, ParserMode, Query, Statistics,
+    parse_line, query::statistics, ParseStatus, ParsedFields, ParserMode, ProfileRevision,
+    ProfileSelection, Query, Statistics,
 };
 use duckdb::{params, params_from_iter, types::Value, Config, Connection};
 use serde::{Deserialize, Serialize};
@@ -26,6 +27,18 @@ const LIST_COLUMNS: &str = "id, line_number, byte_offset, substring(message, 1, 
 
 #[derive(Debug, Error)]
 pub enum EngineError {
+    #[error("Invalid parsing profile: {0}")]
+    InvalidProfile(String),
+    #[error("The parsing profile is missing, malformed or has an unsupported definition/storage version.")]
+    UnsupportedProfile,
+    #[error("This profile changed. Load its latest revision before saving a new version.")]
+    ProfileConflict,
+    #[error("Profile storage limit: 50 profiles, 20 revisions per profile, 200 revisions per case and 16 KiB per definition.")]
+    ProfileStorageLimit,
+    #[error(
+        "Preview accepts at most 64 KiB of UTF-8 text and 100 physical lines. Shorten the sample."
+    )]
+    ProfilePreviewLimit,
     #[error("Unable to read the selected file or local session storage.")]
     Io(#[from] std::io::Error),
     #[error("The local analysis database could not complete the operation.")]
@@ -82,6 +95,8 @@ pub struct SourceSummary {
     pub name: String,
     pub provenance: String,
     pub parser_mode: ParserMode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<ProfileRevision>,
     pub partial_events: u64,
     pub unparsed_events: u64,
     pub total_bytes: u64,
@@ -238,6 +253,7 @@ impl Engine {
             has_json_attributes,
         };
         engine.case_summary()?;
+        engine.parsing_profiles()?;
         Ok(engine)
     }
 
@@ -305,6 +321,15 @@ impl Engine {
             .iter()
             .map(|value| serde_json::from_str(value).map_err(|_| EngineError::UnsupportedCase))
             .collect::<Result<Vec<SourceSummary>, _>>()?;
+        for source in &sources {
+            match (&source.profile, source.parser_mode) {
+                (Some(profile), ParserMode::Custom) => profile.validate()?,
+                (None, ParserMode::Custom) | (Some(_), _) => {
+                    return Err(EngineError::UnsupportedProfile)
+                }
+                _ => {}
+            }
+        }
         Ok(CaseSummary {
             name: self.case_name.clone(),
             path: if self._storage.is_none() {
@@ -333,9 +358,46 @@ impl Engine {
         path: &Path,
         mode: ParserMode,
         cancelled: &AtomicBool,
-        mut progress: impl FnMut(ImportProgress),
+        progress: impl FnMut(ImportProgress),
         identity: Option<(&str, &str)>,
     ) -> Result<SourceSummary, EngineError> {
+        if mode == ParserMode::Custom {
+            return Err(EngineError::UnsupportedProfile);
+        }
+        self.import_selected(path, mode, cancelled, progress, identity, None)
+    }
+
+    pub fn import_with_profile(
+        &mut self,
+        path: &Path,
+        selection: ProfileSelection,
+        cancelled: &AtomicBool,
+        progress: impl FnMut(ImportProgress),
+    ) -> Result<SourceSummary, EngineError> {
+        let profile = self.profile_revision(selection)?;
+        self.import_selected(
+            path,
+            ParserMode::Custom,
+            cancelled,
+            progress,
+            None,
+            Some(profile),
+        )
+    }
+
+    fn import_selected(
+        &mut self,
+        path: &Path,
+        mode: ParserMode,
+        cancelled: &AtomicBool,
+        mut progress: impl FnMut(ImportProgress),
+        identity: Option<(&str, &str)>,
+        profile: Option<ProfileRevision>,
+    ) -> Result<SourceSummary, EngineError> {
+        let compiled = profile
+            .as_ref()
+            .map(|p| p.definition.compile())
+            .transpose()?;
         if !std::fs::metadata(path)?.is_file() {
             return Err(EngineError::NotRegularFile);
         }
@@ -414,7 +476,10 @@ impl Engine {
                 let display_bytes = buffer.strip_suffix(b"\n").unwrap_or(&buffer);
                 let display_bytes = display_bytes.strip_suffix(b"\r").unwrap_or(display_bytes);
                 let message = String::from_utf8_lossy(display_bytes);
-                let mut fields = parse_line(&message, mode);
+                let mut fields = match &compiled {
+                    Some(profile) => profile.parse(&message),
+                    None => parse_line(&message, mode),
+                };
                 if std::str::from_utf8(display_bytes).is_err() {
                     let warning = "Invalid UTF-8; display uses replacement characters. Original bytes are preserved.";
                     fields.parse_error = Some(match fields.parse_error {
@@ -499,6 +564,7 @@ impl Engine {
                     .map(|(_, provenance)| provenance.to_string())
                     .unwrap_or_else(|| path.to_string_lossy().into_owned()),
                 parser_mode: mode,
+                profile: profile.clone(),
                 partial_events: partial,
                 unparsed_events: unparsed,
                 name: identity

@@ -2539,3 +2539,76 @@ kbd {
     grid-template-columns: 1fr;
   }
 }
+
+.profile-workspace {
+  margin: 24px;
+  max-width: 1280px;
+}
+.profile-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  margin-top: 20px;
+}
+.profile-editor,
+.profile-preview {
+  min-width: 0;
+}
+.profile-workspace label {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  font-weight: 600;
+}
+.profile-workspace textarea,
+.profile-workspace input,
+.profile-workspace select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  background: var(--surface);
+}
+.profile-workspace textarea {
+  resize: vertical;
+  font-family: monospace;
+  font-size: 13px;
+}
+.profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+}
+.profile-workspace p {
+  line-height: 1.6;
+}
+.profile-results {
+  max-height: 540px;
+  overflow: auto;
+  margin-top: 16px;
+}
+.profile-result {
+  padding: 12px;
+  border: 1px solid var(--border);
+  margin-bottom: 10px;
+  border-radius: 6px;
+}
+.profile-result pre,
+.evidence-fields pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.profile-diagnostic {
+  color: var(--warning);
+}
+.profile-workspace code {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1000px) {
+  .profile-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

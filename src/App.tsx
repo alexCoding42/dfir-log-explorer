@@ -22,6 +22,7 @@ import { HelpDialog } from "./HelpDialog";
 import type { View } from "./workspace";
 import { DetailPanel } from "./DetailPanel";
 import { EventTable } from "./EventTable";
+import { ParsingProfiles } from "./ParsingProfiles";
 import { SavedSearches } from "./SavedSearches";
 import {
   InvestigationStatistics,
@@ -41,6 +42,7 @@ import type {
   FieldFilter,
   ImportProgress,
   ParserMode,
+  ProfileRevision,
   ParseStatus,
   QueryPage,
   Query,
@@ -124,6 +126,7 @@ export function App({ bridge }: { bridge: Bridge }) {
 
   const [page, setPage] = useState<QueryPage>(emptyPage);
   const [mode, setMode] = useState<ParserMode>("auto");
+  const [profile, setProfile] = useState<ProfileRevision | null>(null);
   const [view, setView] = useState<View>("Explore");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -276,6 +279,12 @@ export function App({ bridge }: { bridge: Bridge }) {
   const beginImport = useCallback(
     async (demo = false) => {
       if (importRunning.current) return;
+      if (!demo && mode === "custom" && !profile) {
+        setError(
+          "Select a saved profile revision in Parsers before importing.",
+        );
+        return;
+      }
       importRunning.current = true;
       setError(null);
       setNotice(null);
@@ -295,7 +304,11 @@ export function App({ bridge }: { bridge: Bridge }) {
         setCancelling(false);
         const summary = await (demo
           ? bridge.importDemo(setProgress)
-          : bridge.importFile(mode, setProgress));
+          : bridge.importFile(
+              mode,
+              setProgress,
+              mode === "custom" ? profile : null,
+            ));
         setCaseInfo(await bridge.caseSummary());
         setView("Explore");
         resetFilters();
@@ -319,7 +332,7 @@ export function App({ bridge }: { bridge: Bridge }) {
         setProgress(null);
       }
     },
-    [bridge, mode, closeDetails, resetFilters],
+    [bridge, mode, profile, closeDetails, resetFilters],
   );
   useEffect(() => {
     let current = true;
@@ -352,6 +365,16 @@ export function App({ bridge }: { bridge: Bridge }) {
     setPicking(true);
     setError(null);
     try {
+      if (
+        bridge.isDesktop &&
+        action !== "save" &&
+        !caseInfo.path &&
+        (await bridge.parsingProfiles()).length > 0
+      ) {
+        throw new Error(
+          "Save this temporary case before switching so your parsing profiles are retained.",
+        );
+      }
       const info = await (action === "save"
         ? bridge.saveCase()
         : action === "open"
@@ -360,6 +383,10 @@ export function App({ bridge }: { bridge: Bridge }) {
       if (info) {
         closeDetails();
         setCaseInfo(info);
+        if (action !== "save") {
+          setProfile(null);
+          if (mode === "custom") setMode("auto");
+        }
         resetFilters();
         setPage(emptyPage);
         setPageAvailable(false);
@@ -608,6 +635,11 @@ export function App({ bridge }: { bridge: Bridge }) {
           importControls={
             <ImportActions
               mode={mode}
+              profileLabel={
+                profile
+                  ? `${profile.definition.name} · revision ${profile.revision}`
+                  : null
+              }
               setMode={setMode}
               disabled={disabled}
               picking={picking}
@@ -1039,14 +1071,30 @@ export function App({ bridge }: { bridge: Bridge }) {
           />
         )}
         {view === "Parsers" && (
-          <ParsersView
-            mode={mode}
-            disabled={disabled}
-            onSelect={(mode) => {
-              setMode(mode);
-              navigate("Explore");
-            }}
-          />
+          <>
+            <ParsingProfiles
+              bridge={bridge}
+              info={caseInfo}
+              disabled={disabled}
+              onBusy={setPicking}
+              onSelect={(selected) => {
+                setProfile(selected);
+                setMode("custom");
+                setNotice(
+                  `Next import: ${selected.definition.name}, revision ${selected.revision}.`,
+                );
+                navigate("Explore");
+              }}
+            />
+            <ParsersView
+              mode={mode}
+              disabled={disabled}
+              onSelect={(mode) => {
+                setMode(mode);
+                navigate("Explore");
+              }}
+            />
+          </>
         )}
         {view === "Settings" && (
           <SettingsView

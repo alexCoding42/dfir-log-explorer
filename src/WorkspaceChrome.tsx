@@ -51,7 +51,7 @@ export function Sidebar({
       </div>
       <div className="workspace-label">
         <span>WORKSPACE</span>
-        <span className="version-tag">MVP 2</span>
+        <span className="version-tag">Delivery 4</span>
       </div>
       <nav>
         {(
@@ -221,12 +221,14 @@ export function Topbar({
 }
 export function ImportActions({
   mode,
+  profileLabel,
   setMode,
   disabled,
   picking,
   beginImport,
 }: {
   mode: ParserMode;
+  profileLabel: string | null;
   setMode: (mode: ParserMode) => void;
   disabled: boolean;
   picking: boolean;
@@ -251,6 +253,9 @@ export function ImportActions({
           <option value="haproxy">HAProxy HTTP</option>
           <option value="modsecurity">ModSecurity audit</option>
           <option value="text">Plain text</option>
+          <option value="custom" disabled={!profileLabel}>
+            {profileLabel ?? "Custom profile — choose in Parsers"}
+          </option>
         </select>
       </label>
       <button
@@ -279,7 +284,7 @@ export function PageHeading({ view }: { view: View }) {
             : view === "Statistics"
               ? "Parsing and time distribution"
               : view === "Parsers"
-                ? "Built-in readers and validation"
+                ? "Built-in readers and local profiles"
                 : "Workspace preferences"}
         </span>
       </h1>

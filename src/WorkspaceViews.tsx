@@ -53,8 +53,21 @@ function EvidenceItem({
             </div>
             <div>
               <dt>Parser selection</dt>
-              <dd>{parsers.find((p) => p.mode === source.parserMode)?.name}</dd>
+              <dd>
+                {source.profile
+                  ? `${source.profile.definition.name} · revision ${source.profile.revision}`
+                  : parsers.find((p) => p.mode === source.parserMode)?.name}
+              </dd>
             </div>
+            {source.profile && (
+              <div>
+                <dt>Profile definition and SHA-256</dt>
+                <dd>
+                  <pre>{source.profile.definition.pattern}</pre>
+                  <code className="hash-value">{source.profile.sha256}</code>
+                </dd>
+              </div>
+            )}
             <div>
               <dt>Parsing result</dt>
               <dd>
@@ -165,9 +178,9 @@ export function ParsersView({
       <div className="view-note">
         <CircleHelp size={18} />
         <p>
-          Apache Error Logs, compressed and binary formats, custom parsers and
-          arbitrary multiline grouping are not supported. Native ModSecurity 2.x
-          audit transactions support explicit A–Z grouping.
+          Apache Error Logs, compressed and binary formats and arbitrary
+          multiline grouping are not supported. Native ModSecurity 2.x audit
+          transactions support explicit A–Z grouping.
         </p>
       </div>
     </section>

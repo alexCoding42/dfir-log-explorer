@@ -169,6 +169,7 @@ impl Query {
                 ParserMode::Nginx => "nginx",
                 ParserMode::JsonLines => "json_lines",
                 ParserMode::Text => "text",
+                ParserMode::Custom => "custom",
                 ParserMode::Syslog => "syslog",
                 ParserMode::Iptables => "iptables",
                 ParserMode::Haproxy => "haproxy",
