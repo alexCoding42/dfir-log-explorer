@@ -16,6 +16,7 @@ pub enum ParserMode {
     Haproxy,
     Modsecurity,
     Text,
+    Custom,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -67,6 +68,13 @@ fn apache_pattern() -> &'static Regex {
 
 pub fn parse_line(line: &str, mode: ParserMode) -> ParsedFields {
     match mode {
+        ParserMode::Custom => {
+            return ParsedFields {
+                parser: "custom".into(),
+                parse_error: Some("Select a saved profile revision for custom import.".into()),
+                ..Default::default()
+            }
+        }
         ParserMode::Syslog => return crate::security_formats::syslog(line),
         ParserMode::Iptables => return crate::security_formats::iptables(line),
         ParserMode::Haproxy => return crate::security_formats::haproxy(line),

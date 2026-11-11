@@ -1,6 +1,7 @@
 use dfir_log_core::{
-    CaseSummary, Engine, EngineError, EventDetail, ImportProgress, ParserMode, Query, QueryPage,
-    SavedSearch, SourceSummary,
+    CaseSummary, Engine, EngineError, EventDetail, ImportProgress, ParserMode, ProfileDefinition,
+    ProfilePreviewRow, ProfileRevision, ProfileSelection, Query, QueryPage, SavedSearch,
+    SourceSummary,
 };
 use std::{
     io::Write,
@@ -69,6 +70,7 @@ async fn pick_file(
 #[tauri::command]
 async fn import_file(
     mode: ParserMode,
+    profile: Option<ProfileSelection>,
     on_progress: Channel<ImportProgress>,
     state: State<'_, AppState>,
 ) -> Result<SourceSummary, String> {
@@ -78,7 +80,7 @@ async fn import_file(
         .map_err(|_| lock_error())?
         .clone()
         .ok_or_else(|| "Choose a source file first.".to_string())?;
-    start_import(state, Some(path), mode, on_progress).await
+    start_import(state, Some(path), mode, profile, on_progress).await
 }
 
 #[tauri::command]
@@ -86,13 +88,14 @@ async fn import_demo(
     on_progress: Channel<ImportProgress>,
     state: State<'_, AppState>,
 ) -> Result<SourceSummary, String> {
-    start_import(state, None, ParserMode::Auto, on_progress).await
+    start_import(state, None, ParserMode::Auto, None, on_progress).await
 }
 
 async fn start_import(
     state: State<'_, AppState>,
     path: Option<PathBuf>,
     mode: ParserMode,
+    profile: Option<ProfileSelection>,
     on_progress: Channel<ImportProgress>,
 ) -> Result<SourceSummary, String> {
     state
@@ -132,19 +135,21 @@ async fn start_import(
         } else {
             None
         };
-        let summary = engine
-            .import_with_identity(
-                &source_path,
-                mode,
-                &cancelled,
-                |progress| {
-                    if on_progress.send(progress).is_err() {
-                        cancelled.store(true, Ordering::Relaxed);
-                    }
-                },
-                identity,
-            )
-            .map_err(|error| error.to_string())?;
+        let report = |progress| {
+            if on_progress.send(progress).is_err() {
+                cancelled.store(true, Ordering::Relaxed);
+            }
+        };
+        let summary = match (mode, profile) {
+            (ParserMode::Custom, Some(profile)) => {
+                engine.import_with_profile(&source_path, profile, &cancelled, report)
+            }
+            (ParserMode::Custom, None) | (_, Some(_)) => Err(EngineError::UnsupportedProfile),
+            (_, None) => {
+                engine.import_with_identity(&source_path, mode, &cancelled, report, identity)
+            }
+        }
+        .map_err(|error| error.to_string())?;
         drop(sample);
         Ok(summary)
     })
@@ -354,6 +359,34 @@ async fn saved_search_query(id: u64, state: State<'_, AppState>) -> Result<Query
     with_search_engine(state, false, move |engine| engine.saved_search_query(id)).await
 }
 
+#[tauri::command]
+async fn parsing_profiles(state: State<'_, AppState>) -> Result<Vec<ProfileRevision>, String> {
+    with_search_engine(state, false, |engine| engine.parsing_profiles()).await
+}
+#[tauri::command]
+async fn put_parsing_profile(
+    previous: Option<ProfileSelection>,
+    definition: ProfileDefinition,
+    state: State<'_, AppState>,
+) -> Result<ProfileRevision, String> {
+    with_search_engine(state, true, move |engine| {
+        engine.put_parsing_profile(previous, definition)
+    })
+    .await
+}
+#[tauri::command]
+async fn preview_profile(
+    definition: ProfileDefinition,
+    sample: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<ProfilePreviewRow>, String> {
+    // Serializes preview with case changes/import and runs regex work off the UI thread.
+    with_search_engine(state, true, move |_| {
+        dfir_log_core::preview_profile(&definition, &sample)
+    })
+    .await
+}
+
 pub fn run() {
     let engine = match Engine::new() {
         Ok(engine) => engine,
@@ -384,7 +417,10 @@ pub fn run() {
             saved_searches,
             put_saved_search,
             delete_saved_search,
-            saved_search_query
+            saved_search_query,
+            parsing_profiles,
+            put_parsing_profile,
+            preview_profile
         ])
         .build(tauri::generate_context!())
         .expect("Unable to start the desktop application")

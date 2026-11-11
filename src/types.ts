@@ -7,7 +7,8 @@ export type ParserMode =
   | "iptables"
   | "haproxy"
   | "modsecurity"
-  | "text";
+  | "text"
+  | "custom";
 export type ParseStatus = "parsed" | "partial" | "unparsed";
 export type SearchField =
   | "all"
@@ -50,6 +51,7 @@ export interface SourceSummary {
   name: string;
   provenance: string;
   parserMode: ParserMode;
+  profile?: ProfileRevision;
   totalBytes: number;
   totalEvents: number;
   totalLines?: number;
@@ -161,6 +163,15 @@ export interface QueryPage {
 }
 export interface Bridge {
   isDesktop: boolean;
+  parsingProfiles(): Promise<ProfileRevision[]>;
+  putParsingProfile(
+    previous: ProfileSelection | null,
+    definition: ProfileDefinition,
+  ): Promise<ProfileRevision>;
+  previewProfile(
+    definition: ProfileDefinition,
+    sample: string,
+  ): Promise<ProfilePreviewRow[]>;
   caseSummary(): Promise<CaseSummary>;
   savedSearches(): Promise<SavedSearch[]>;
   putSavedSearch(
@@ -177,9 +188,37 @@ export interface Bridge {
   importFile(
     mode: ParserMode,
     progress: (value: ImportProgress) => void,
+    profile?: ProfileSelection | null,
   ): Promise<SourceSummary>;
   importDemo(progress: (value: ImportProgress) => void): Promise<SourceSummary>;
   cancelImport(): Promise<void>;
   query(query: Query): Promise<QueryPage>;
   detail(id: number): Promise<EventDetail>;
+}
+
+export interface ProfileDefinition {
+  version: number;
+  name: string;
+  pattern: string;
+}
+export interface ProfileSelection {
+  id: number;
+  revision: number;
+}
+export interface ProfileRevision extends ProfileSelection {
+  definition: ProfileDefinition;
+  sha256: string;
+}
+export interface ProfilePreviewRow {
+  lineNumber: number;
+  byteOffset: number;
+  raw: string;
+  fields: {
+    parser: string;
+    parseStatus: ParseStatus;
+    timestamp: string | null;
+    timestampMs: number | null;
+    parseError: string | null;
+    jsonFields?: Record<string, unknown>;
+  };
 }

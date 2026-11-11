@@ -56,11 +56,14 @@ test("sample exploration searches raw content and shows the original event safel
 });
 
 test("cancellation returns to the empty session", async ({ page }) => {
+  await page.clock.install();
+  await page.clock.pauseAt(new Date());
   await page.goto("/");
   await page
     .getByRole("button", { name: "Explore a synthetic sample" })
     .click();
   await page.getByRole("button", { name: "Cancel import" }).click();
+  await page.clock.runFor(500);
   await expect(
     page.getByText("Import cancelled. No events from this import were kept."),
   ).toBeVisible();

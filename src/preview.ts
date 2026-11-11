@@ -127,6 +127,17 @@ function statistics(rows: EventDetail[]): Statistics {
 }
 export const previewBridge: Bridge = {
   isDesktop: false,
+  async parsingProfiles() {
+    return [];
+  },
+  async putParsingProfile() {
+    throw new Error("Custom parsing profiles require the desktop application.");
+  },
+  async previewProfile() {
+    throw new Error(
+      "Profile preview requires the desktop application and its local reader.",
+    );
+  },
   async caseSummary() {
     return {
       name: "Temporary case",

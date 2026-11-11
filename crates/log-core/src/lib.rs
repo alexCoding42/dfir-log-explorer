@@ -10,3 +10,6 @@ pub use query::*;
 
 mod saved_searches;
 pub use saved_searches::*;
+
+mod profiles;
+pub use profiles::*;

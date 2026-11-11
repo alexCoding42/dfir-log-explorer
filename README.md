@@ -4,7 +4,7 @@
 
 A focused log exploration tool for digital forensic and incident response workflows. DFIR Log Explorer helps analysts turn collected log files into structured, searchable events, with the original log content and parsing diagnostics available alongside the results.
 
-**Project status:** `main` contains the accepted **Delivery 2 (v0.3.0)**, integrated through PR #6. **Delivery 3 (v0.4.0)** adds timeline navigation, investigation breakdowns and saved searches on `codex/9-11-delivery-3`, pending human review and integration. These are early test builds, not a production release.
+**Project status:** `main` contains accepted **Delivery 3 (v0.4.0)**, integrated through PR #25 on October 22, 2026. **Delivery 4 (v0.5.0)** adds local parsing profiles, bounded preview, immutable version history and profile-based imports on `codex/12-15-delivery-4`, pending human review and integration. These are early test builds, not a production release.
 
 ## Overview
 
@@ -70,14 +70,22 @@ The [Delivery 1 acceptance guide][mvp1-acceptance], [reader/date rules][mvp1-for
 
 See the [Delivery 2 format contract](docs/mvp-2-formats.md), [acceptance guide](docs/mvp-2-acceptance.md) and [validation record](docs/mvp-2-validation.md). These are selected layouts, not universal firewall/WAF support. Auto recognition retains its Delivery 1 behavior; select security readers explicitly.
 
-### Implemented in the Delivery 3 review build
+### Implemented in Delivery 3
 
 - Zoom into timeline intervals in Statistics, step back through previous ranges and reset time bounds while retaining other filters.
 - Inspect query-scoped top client IPs, paths, sources and readers across all result pages, then drill into the corresponding events without dropping active filters.
 - Create, find, apply, update, rename and delete named searches within a case. Search definitions retain filters and sorting after the case is saved and reopened; raw evidence is unchanged.
 - Keep existing schema-1 cases readable. Search definitions use a separately versioned optional extension created on first write; browser preview searches remain memory-only.
 
-See the [Delivery 3 acceptance guide](docs/delivery-3-acceptance.md) for exact behavior, compatibility and limitations, and the [validation record](docs/delivery-3-validation.md) for actual results. Delivery 3 requires human acceptance and separate merge authorization.
+See the [Delivery 3 acceptance guide](docs/delivery-3-acceptance.md) for exact behavior, compatibility and limitations, and the [validation record](docs/delivery-3-validation.md) for actual results. Delivery 3 was accepted for integration through PR #25.
+
+### Implemented in the Delivery 4 review build
+
+- Define single-line text readers with named regex captures in **Parsers**, preview up to 64 KiB / 100 lines using the actual local reader, and inspect raw text, fields and diagnostics.
+- Save immutable profile revisions within a case and select a specific revision for the next import. Each imported source retains the full definition and digest used; later edits leave existing evidence unchanged.
+- Reopen profile history with the case, keep existing schema-1 cases readable and retain the existing transactional import/cancellation behavior.
+
+See the [Delivery 4 acceptance guide](docs/delivery-4-acceptance.md) for the starter application format, supported fields, limits and compatibility, and the [validation record](docs/delivery-4-validation.md) for executed checks. Custom profile creation and preview require the desktop app. Human acceptance and explicit merge authorization remain required.
 
 ### Understanding parsing results
 
@@ -101,6 +109,8 @@ Warnings are counted independently of parsing status. For example, a text record
 | Netfilter / iptables | Delivery 2                | Netfilter LOG key/value payloads, bare or wrapped in supported Syslog.                                                                       |
 | HAProxy HTTP         | Delivery 2                | Standard option httplog layout, optional captured headers and supported Syslog wrappers.                                                     |
 | ModSecurity audit    | Delivery 2                | Native ModSecurity 2.x serial A–Z transactions, at most 1 MiB per event.                                                                     |
+
+Delivery 4 adds explicitly selected custom single-line readers through local profiles; see the [profile contract](docs/delivery-4-acceptance.md). Auto detection never chooses a custom profile.
 
 Auto mode recognizes Apache-compatible access layouts; Delivery 1 also recognizes JSON objects. Apache and Nginx Combined layouts overlap, so automatic recognition cannot establish which server produced a record. Choose Nginx explicitly in Delivery 1 to label those events Nginx.
 
@@ -154,7 +164,7 @@ git clone https://github.com/a-cisse/dfir-log-explorer.git
 cd dfir-log-explorer
 ```
 
-A fresh clone checks out `main`. Delivery 2 is accepted for integration through PR #6; the historical implementation branch is `codex/mvp-2`. Check the revision before reproducing a validation build.
+A fresh clone checks out `main`. Delivery 3 is integrated through PR #25; the Delivery 4 review implementation is on `codex/12-15-delivery-4`. Check the revision before reproducing a validation build.
 
 Then install dependencies and launch the desktop application:
 
@@ -228,8 +238,8 @@ The project advances through **deliveries**, retaining the former stage numbers 
 | Delivery 0 | Accepted and integrated: single-source exploration, Apache/text readers, parsing diagnostics, raw inspection, filters, sorting, basic statistics and timeline. Historical PRs #1 and #2 are preserved.                                                                                |
 | Delivery 1 | Integrated: persistent cases, multiple sources, Nginx/JSON Lines, structured/date filters and compact workspace. Historical PRs #3, #4 and #5 are preserved.                                                                                                                          |
 | Delivery 2 | Accepted and integrated on 2026-10-19: Syslog, Netfilter/iptables, HAProxy HTTP and bounded native ModSecurity audit in [PR #6](https://github.com/a-cisse/dfir-log-explorer/pull/6). Acceptance and integration record: [#8](https://github.com/a-cisse/dfir-log-explorer/issues/8). |
-| Delivery 3 | Authorized review implementation: expanded timeline/statistics workflows and saved searches. [Delivery 3 — Exploration and saved searches](https://github.com/a-cisse/dfir-log-explorer/milestone/2). Basic timeline/statistics already exist.                                        |
-| Delivery 4 | Backlog: local parsing profiles, preview, versioning and profile-based import. [Delivery 4 — Local parsing profiles](https://github.com/a-cisse/dfir-log-explorer/milestone/3).                                                                                                       |
+| Delivery 3 | Accepted and integrated on October 22, 2026 through PR #25: expanded timeline/statistics workflows and saved searches. [Delivery 3 — Exploration and saved searches](https://github.com/a-cisse/dfir-log-explorer/milestone/2). Basic timeline/statistics already exist.              |
+| Delivery 4 | Authorized review implementation: local parsing profiles, preview, version history and profile-based import. [Delivery 4 — Local parsing profiles](https://github.com/a-cisse/dfir-log-explorer/milestone/3).                                                                         |
 | Delivery 5 | Backlog: measurements, justified optimization, resumable ingestion, compression and exports. [Delivery 5 — Volume, ingestion and exports](https://github.com/a-cisse/dfir-log-explorer/milestone/4).                                                                                  |
 | To explore | Uncommitted: binary readers, correlations and annotations. [To explore — Future work to agree](https://github.com/a-cisse/dfir-log-explorer/milestone/5).                                                                                                                             |
 

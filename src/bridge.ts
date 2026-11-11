@@ -3,6 +3,14 @@ import type { Bridge, ImportProgress, SourceSummary } from "./types";
 
 const desktopBridge: Bridge = {
   isDesktop: true,
+  parsingProfiles: () => invoke("parsing_profiles"),
+  putParsingProfile: (previous, definition) =>
+    invoke("put_parsing_profile", {
+      previous: previous && { id: previous.id, revision: previous.revision },
+      definition,
+    }),
+  previewProfile: (definition, sample) =>
+    invoke("preview_profile", { definition, sample }),
   caseSummary: () => invoke("case_summary"),
   savedSearches: () => invoke("saved_searches"),
   putSavedSearch: (id, name, query) =>
@@ -13,10 +21,14 @@ const desktopBridge: Bridge = {
   openCase: () => invoke("open_case"),
   closeCase: () => invoke("close_case"),
   pickFile: () => invoke("pick_file"),
-  importFile: (mode, handler) => {
+  importFile: (mode, handler, profile = null) => {
     const onProgress = new Channel<ImportProgress>();
     onProgress.onmessage = handler;
-    return invoke<SourceSummary>("import_file", { mode, onProgress });
+    return invoke<SourceSummary>("import_file", {
+      mode,
+      profile: profile && { id: profile.id, revision: profile.revision },
+      onProgress,
+    });
   },
   importDemo: (handler) => {
     const onProgress = new Channel<ImportProgress>();

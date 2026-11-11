@@ -1,0 +1,4 @@
+2026-11-11T12:00:00Z | INFO | Server ready
+invalid-date | WARN | Clock needs review
+Unrecognized record
+2026-11-11T14:00:02+02:00 | ERROR | Login denied

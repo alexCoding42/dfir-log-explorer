@@ -137,6 +137,7 @@ export function SourceFilters({
           <option value="haproxy">HAProxy HTTP</option>
           <option value="modsecurity">ModSecurity audit</option>
           <option value="text">Text</option>
+          <option value="custom">Custom profile</option>
         </select>
       </label>
       <label>
