@@ -38,6 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let seconds = started.elapsed().as_secs_f64();
     assert_eq!(imported.total_events, events);
     assert_eq!(imported.parsed_events, events);
+    assert_eq!(imported.warning_events, 0);
     let query = Query {
         limit: PAGE_SIZE,
         ..Default::default()
@@ -58,18 +59,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..query
     })?;
     assert_eq!(last.rows.last().unwrap().id, events);
+    let filtered_events = events.div_ceil(100);
+    let deep_filtered = engine.query(&Query {
+        search: "/login".into(),
+        offset: filtered_events.saturating_sub(PAGE_SIZE as u64),
+        limit: PAGE_SIZE,
+        ..Default::default()
+    })?;
+    assert_eq!(deep_filtered.total, filtered_events);
+    assert_eq!(
+        deep_filtered.rows.last().unwrap().id,
+        (filtered_events - 1) * 100 + 1
+    );
+    // Saving checkpoints the real case; the size includes raw evidence and fields.
+    // Keep this outside the import/query timings; process RSS still includes saving.
+    let saved = tempfile::tempdir()?;
+    let case_path = saved.path().join("benchmark.duckdb");
+    let save_started = Instant::now();
+    engine.save_case(&case_path)?;
+    let save_seconds = save_started.elapsed().as_secs_f64();
+    let database_bytes = case_path.metadata()?.len();
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
             "profile": if cfg!(debug_assertions) { "debug" } else { "release" },
             "events": events,
             "source_bytes": imported.total_bytes,
+            "source_sha256": imported.sha256,
+            "parsed_events": imported.parsed_events,
+            "warning_events": imported.warning_events,
             "import_seconds": seconds,
             "import_mib_per_second": imported.total_bytes as f64 / 1048576.0 / seconds,
             "events_per_second": events as f64 / seconds,
             "first_page_ms": first.elapsed_ms,
             "literal_search_ms": search_ms,
             "last_page_ms": last.elapsed_ms,
+            "deep_filtered_page_ms": deep_filtered.elapsed_ms,
+            "database_bytes": database_bytes,
+            "save_case_seconds": save_seconds,
+            "scope": "engine only; source generation and save excluded from import timing",
+            "cache_conditions": "fresh engine; input just generated; queries share engine and OS caches",
             "database_memory_limit": "512MB (not a process-wide cap)",
             "duckdb_threads": 2
         }))?

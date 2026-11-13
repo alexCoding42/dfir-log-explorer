@@ -15,6 +15,17 @@ PowerShell can execute `target\release\examples\benchmark.exe 1000000`; use the 
 
 The JSON output records profile, source bytes, import seconds, events/second, MiB/second, first page time, five literal searches, and final page time. Engine-only memory measurements exclude the UI/webview. A debug run is useful for correctness but is not a release performance claim.
 
+The Delivery 5 preparation also records the input SHA-256, parsed/warning
+counts, deep filtered pagination, saved database size and save duration. Saving
+runs after query measurements, outside import/query timing. `/usr/bin/time -v`
+covers the entire process, including generation and saving; its peak RSS cannot
+be attributed exclusively to ingestion. The first query uses a fresh engine,
+but the input has just been generated and OS caches are not cleared. Repeated
+searches also reuse the engine's statistics cache. Retain these distinctions in
+any before/after comparison. The [Delivery 5 plan](delivery-5-plan.md) contains
+proposed workloads and outstanding decisions; no new measurements are claimed
+by adding instrumentation.
+
 ## Comparison protocol
 
 - Use the same hardware, source files, extraction requirements, and result semantics.
