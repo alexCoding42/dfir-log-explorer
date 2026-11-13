@@ -3,6 +3,22 @@ import type { Bridge, ImportProgress, SourceSummary } from "./types";
 
 const desktopBridge: Bridge = {
   isDesktop: true,
+  pendingImport: () => invoke("pending_import"),
+  discardPendingImport: () => invoke("discard_pending_import"),
+  importResumable: (mode, handler, profile = null) => {
+    const onProgress = new Channel<ImportProgress>();
+    onProgress.onmessage = handler;
+    return invoke("import_resumable", {
+      mode,
+      profile: profile && { id: profile.id, revision: profile.revision },
+      onProgress,
+    });
+  },
+  exportResults: (query, format, includeRaw, handler) => {
+    const onProgress = new Channel<{ eventsWritten: number }>();
+    onProgress.onmessage = (p) => handler(p.eventsWritten);
+    return invoke("export_results", { query, format, includeRaw, onProgress });
+  },
   parsingProfiles: () => invoke("parsing_profiles"),
   putParsingProfile: (previous, definition) =>
     invoke("put_parsing_profile", {

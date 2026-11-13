@@ -4,7 +4,7 @@
 
 A focused log exploration tool for digital forensic and incident response workflows. DFIR Log Explorer helps analysts turn collected log files into structured, searchable events, with the original log content and parsing diagnostics available alongside the results.
 
-**Project status:** `main` contains accepted **Delivery 3 (v0.4.0)**, integrated through PR #25 on October 22, 2026. **Delivery 4 (v0.5.0)** adds local parsing profiles, bounded preview, immutable version history and profile-based imports on `codex/12-15-delivery-4`, pending human review and integration. These are early test builds, not a production release.
+**Project status:** Delivery 4 (v0.5.0) is integrated through PR #27. Delivery 5 adds measured volume work, gzip ingestion, durable checkpoints and filtered CSV/JSON Lines exports on `codex/16-20-delivery-5`, pending verification and human review. These are early test builds, not a production release.
 
 ## Overview
 
@@ -203,6 +203,10 @@ Table/inspector timestamps retain source offsets; timeline intervals and time fi
 
 Shortcuts include **Ctrl/Cmd O** to import, **Ctrl/Cmd K** to focus search, arrow keys to navigate visible rows, **Enter** to inspect and **Esc** to close the inspector or help (also the Case menu in Delivery 1).
 
+### Delivery 5 ingestion and export
+
+Expand **Ingestion and export** for checkpoint imports into a saved case, resuming/discarding incomplete imports, and exporting all filtered results across pages. Ordinary imports retain atomic cancellation. Gzip is detected automatically. Exports use CSV (structured JSON cells) or JSON Lines, include provenance and optionally raw evidence, and never overwrite existing files. See the [full contract and review scenarios](docs/delivery-5-acceptance.md).
+
 ## Technical limits and local data handling
 
 ### Sessions and cases
@@ -216,7 +220,7 @@ Shortcuts include **Ctrl/Cmd O** to import, **Ctrl/Cmd K** to focus search, arro
 
 - Sources are read-only. Accepted imports retain original bytes, including line terminators and invalid UTF-8, alongside decoded display text. Invalid UTF-8 uses replacement characters for display; original bytes remain stored.
 - Use stable source files. Size or modification-time changes detected during import cause rollback. Those checks and SHA-256 fingerprints do not constitute forensic acquisition or a complete chain-of-custody system.
-- Only uncompressed UTF-8 text is supported. Known gzip, ZIP, EVTX and UTF-16 signatures are rejected. Dedicated binary readers, additional encodings, compressed sources and arbitrary multiline grouping are future work. Delivery 2 supports native ModSecurity 2.x transactions up to 1 MiB.
+- Text and gzip are supported, with a 10 GiB decoded-source limit. ZIP, EVTX and UTF-16 signatures remain unsupported. Gzip provenance distinguishes compressed and decoded hashes/offsets. Dedicated binary readers, additional encodings and arbitrary multiline grouping are future work. Delivery 2 supports native ModSecurity 2.x transactions up to 1 MiB.
 - A line exceeding **1 MiB**, including its terminator, causes an explicit error and full rollback; it is not silently truncated.
 - DuckDB's **512 MB buffer-memory budget is not a process-wide RAM limit**. Original bytes and decoded text are both stored, so sufficient local disk space is required.
 - Searches scan text/fields and sorting runs in DuckDB. Unfiltered pages use event-ID boundaries; deep filtered offsets can become slower. Full-text indexing is future work.
@@ -240,7 +244,7 @@ The project advances through **deliveries**, retaining the former stage numbers 
 | Delivery 2 | Accepted and integrated on 2026-10-19: Syslog, Netfilter/iptables, HAProxy HTTP and bounded native ModSecurity audit in [PR #6](https://github.com/a-cisse/dfir-log-explorer/pull/6). Acceptance and integration record: [#8](https://github.com/a-cisse/dfir-log-explorer/issues/8). |
 | Delivery 3 | Accepted and integrated on October 22, 2026 through PR #25: expanded timeline/statistics workflows and saved searches. [Delivery 3 — Exploration and saved searches](https://github.com/a-cisse/dfir-log-explorer/milestone/2). Basic timeline/statistics already exist.              |
 | Delivery 4 | Authorized review implementation: local parsing profiles, preview, version history and profile-based import. [Delivery 4 — Local parsing profiles](https://github.com/a-cisse/dfir-log-explorer/milestone/3).                                                                         |
-| Delivery 5 | Backlog: measurements, justified optimization, resumable ingestion, compression and exports. [Delivery 5 — Volume, ingestion and exports](https://github.com/a-cisse/dfir-log-explorer/milestone/4).                                                                                  |
+| Delivery 5 | Authorized: measurements, measured optimization, resumable ingestion, gzip and exports; see the [acceptance contract](docs/delivery-5-acceptance.md). [Delivery 5 — Volume, ingestion and exports](https://github.com/a-cisse/dfir-log-explorer/milestone/4).                         |
 | To explore | Uncommitted: binary readers, correlations and annotations. [To explore — Future work to agree](https://github.com/a-cisse/dfir-log-explorer/milestone/5).                                                                                                                             |
 
 Future feature Issues remain in Backlog until authorized. Necessary performance work can occur within an earlier authorized delivery. Existing `mvp-*` documentation paths, workflow IDs and branch names remain valid historical references; no retrospective development tickets have been manufactured.

@@ -15,6 +15,17 @@ PowerShell can execute `target\release\examples\benchmark.exe 1000000`; use the 
 
 The JSON output records profile, source bytes, import seconds, events/second, MiB/second, first page time, five literal searches, and final page time. Engine-only memory measurements exclude the UI/webview. A debug run is useful for correctness but is not a release performance claim.
 
+The Delivery 5 preparation also records the input SHA-256, parsed/warning
+counts, deep filtered pagination, saved database size and save duration. Saving
+runs after query measurements, outside import/query timing. `/usr/bin/time -v`
+covers the entire process, including generation and saving; its peak RSS cannot
+be attributed exclusively to ingestion. The first query uses a fresh engine,
+but the input has just been generated and OS caches are not cleared. Repeated
+searches also reuse the engine's statistics cache. Retain these distinctions in
+any before/after comparison. The [Delivery 5 plan](delivery-5-plan.md) contains
+proposed workloads and outstanding decisions; no new measurements are claimed
+by adding instrumentation.
+
 ## Comparison protocol
 
 - Use the same hardware, source files, extraction requirements, and result semantics.
@@ -30,3 +41,13 @@ The JSON output records profile, source bytes, import seconds, events/second, Mi
 Filtered searches/counts currently scan decoded text, and deep filtered offset pagination is not guaranteed to be constant-time. Unfiltered pages use contiguous event-ID boundaries to avoid skipping earlier results. Imports are atomic and block exploration until completion. The database buffer budget is 512 MB with two threads, while total process memory can exceed that budget. Filtered cursor navigation, indexes, and incremental imports will be considered against observed bottlenecks.
 
 Actual local verification measurements are recorded in `docs/validation.md` when available; they are not universal performance guarantees.
+
+## Delivery 5 measured scope
+
+See the [Delivery 5 validation record](delivery-5-validation.md) for retained
+100k/1m debug measurements, shared-container/cache limitations, correctness
+assertions and regressions. A four-page preview cache eliminates repeated SQL
+for identical validated queries and is invalidated on source publication.
+Uncached searches/deep offsets still scan; this is not a generalized indexing
+or throughput guarantee. Gzip and checkpoint ingestion have separate resource
+and integrity costs documented in the [acceptance contract](delivery-5-acceptance.md).
