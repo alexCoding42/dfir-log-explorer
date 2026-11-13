@@ -346,7 +346,17 @@ export function DetailPanel({
             Source #{source.id} · {source.name}
           </span>
           <span>{source.provenance}</span>
-          <small className="mono">SHA-256: {source.sha256}</small>
+          <small className="mono">
+            SHA-256{source.compression ? " (decoded)" : ""}: {source.sha256}
+          </small>
+          {source.compression && (
+            <>
+              <small>Gzip · offsets address decoded bytes</small>
+              <small className="mono">
+                Compressed SHA-256: {source.compression.compressedSha256}
+              </small>
+            </>
+          )}
           <span>
             Source{" "}
             {detail.endLineNumber && detail.endLineNumber > detail.lineNumber

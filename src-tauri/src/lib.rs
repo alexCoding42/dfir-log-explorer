@@ -1,7 +1,7 @@
 use dfir_log_core::{
-    CaseSummary, Engine, EngineError, EventDetail, ImportProgress, ParserMode, ProfileDefinition,
-    ProfilePreviewRow, ProfileRevision, ProfileSelection, Query, QueryPage, SavedSearch,
-    SourceSummary,
+    CaseSummary, Engine, EngineError, EventDetail, ExportFormat, ExportProgress, ImportProgress,
+    ParserMode, PendingImport, ProfileDefinition, ProfilePreviewRow, ProfileRevision,
+    ProfileSelection, Query, QueryPage, SavedSearch, SourceSummary,
 };
 use std::{
     io::Write,
@@ -47,7 +47,9 @@ async fn pick_file(
             .file()
             .add_filter(
                 "Log and text files",
-                &["log", "txt", "access", "out", "jsonl", "ndjson", "json"],
+                &[
+                    "log", "txt", "access", "out", "jsonl", "ndjson", "json", "gz",
+                ],
             )
             .add_filter("All files", &["*"])
             .blocking_pick_file();
@@ -80,7 +82,7 @@ async fn import_file(
         .map_err(|_| lock_error())?
         .clone()
         .ok_or_else(|| "Choose a source file first.".to_string())?;
-    start_import(state, Some(path), mode, profile, on_progress).await
+    start_import(state, Some(path), mode, profile, on_progress, false).await
 }
 
 #[tauri::command]
@@ -88,7 +90,7 @@ async fn import_demo(
     on_progress: Channel<ImportProgress>,
     state: State<'_, AppState>,
 ) -> Result<SourceSummary, String> {
-    start_import(state, None, ParserMode::Auto, None, on_progress).await
+    start_import(state, None, ParserMode::Auto, None, on_progress, false).await
 }
 
 async fn start_import(
@@ -97,6 +99,7 @@ async fn start_import(
     mode: ParserMode,
     profile: Option<ProfileSelection>,
     on_progress: Channel<ImportProgress>,
+    resumable: bool,
 ) -> Result<SourceSummary, String> {
     state
         .busy
@@ -140,13 +143,17 @@ async fn start_import(
                 cancelled.store(true, Ordering::Relaxed);
             }
         };
-        let summary = match (mode, profile) {
-            (ParserMode::Custom, Some(profile)) => {
-                engine.import_with_profile(&source_path, profile, &cancelled, report)
-            }
-            (ParserMode::Custom, None) | (_, Some(_)) => Err(EngineError::UnsupportedProfile),
-            (_, None) => {
-                engine.import_with_identity(&source_path, mode, &cancelled, report, identity)
+        let summary = if resumable {
+            engine.import_resumable(&source_path, mode, profile, &cancelled, report)
+        } else {
+            match (mode, profile) {
+                (ParserMode::Custom, Some(profile)) => {
+                    engine.import_with_profile(&source_path, profile, &cancelled, report)
+                }
+                (ParserMode::Custom, None) | (_, Some(_)) => Err(EngineError::UnsupportedProfile),
+                (_, None) => {
+                    engine.import_with_identity(&source_path, mode, &cancelled, report, identity)
+                }
             }
         }
         .map_err(|error| error.to_string())?;
@@ -387,6 +394,83 @@ async fn preview_profile(
     .await
 }
 
+#[tauri::command]
+async fn pending_import(state: State<'_, AppState>) -> Result<Option<PendingImport>, String> {
+    with_search_engine(state, false, |engine| engine.pending_import()).await
+}
+#[tauri::command]
+async fn discard_pending_import(state: State<'_, AppState>) -> Result<(), String> {
+    with_search_engine(state, true, |engine| engine.discard_pending_import()).await
+}
+#[tauri::command]
+async fn import_resumable(
+    mode: ParserMode,
+    profile: Option<ProfileSelection>,
+    on_progress: Channel<ImportProgress>,
+    state: State<'_, AppState>,
+) -> Result<SourceSummary, String> {
+    let path = state
+        .selected
+        .lock()
+        .map_err(|_| lock_error())?
+        .clone()
+        .ok_or_else(|| "Choose the original source file first.".to_string())?;
+    start_import(state, Some(path), mode, profile, on_progress, true).await
+}
+#[tauri::command]
+async fn export_results(
+    app: tauri::AppHandle,
+    query: Query,
+    format: ExportFormat,
+    include_raw: bool,
+    on_progress: Channel<ExportProgress>,
+    state: State<'_, AppState>,
+) -> Result<Option<u64>, String> {
+    state
+        .busy
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .map_err(|_| "Wait for the current operation to finish.".to_string())?;
+    state.cancelled.store(false, Ordering::Relaxed);
+    let guard = BusyGuard(Arc::clone(&state.busy));
+    let engine = Arc::clone(&state.engine);
+    let cancelled = Arc::clone(&state.cancelled);
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = guard;
+        let extension = match format {
+            ExportFormat::Csv => "csv",
+            ExportFormat::JsonLines => "jsonl",
+        };
+        let Some(file) = app
+            .dialog()
+            .file()
+            .add_filter("Investigation results", &[extension])
+            .set_file_name(format!("results.{extension}"))
+            .blocking_save_file()
+        else {
+            return Ok(None);
+        };
+        let mut path = file
+            .into_path()
+            .map_err(|_| "Select a local export destination.".to_string())?;
+        if path.extension().is_none() {
+            path.set_extension(extension);
+        }
+        let locked = engine.lock().map_err(|_| lock_error())?;
+        let count = locked
+            .as_ref()
+            .ok_or_else(lock_error)?
+            .export(&query, format, include_raw, &path, &cancelled, |progress| {
+                if on_progress.send(progress).is_err() {
+                    cancelled.store(true, Ordering::Relaxed);
+                }
+            })
+            .map_err(|e| e.to_string())?;
+        Ok(Some(count))
+    })
+    .await
+    .map_err(|_| lock_error())?
+}
+
 pub fn run() {
     let engine = match Engine::new() {
         Ok(engine) => engine,
@@ -420,7 +504,11 @@ pub fn run() {
             saved_search_query,
             parsing_profiles,
             put_parsing_profile,
-            preview_profile
+            preview_profile,
+            pending_import,
+            discard_pending_import,
+            import_resumable,
+            export_results
         ])
         .build(tauri::generate_context!())
         .expect("Unable to start the desktop application")

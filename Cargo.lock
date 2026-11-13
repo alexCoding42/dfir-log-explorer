@@ -841,10 +841,11 @@ dependencies = [
 
 [[package]]
 name = "dfir-log-core"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "chrono",
  "duckdb",
+ "flate2",
  "regex",
  "serde",
  "serde_json",
@@ -855,7 +856,7 @@ dependencies = [
 
 [[package]]
 name = "dfir-log-explorer"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "dfir-log-core",
  "serde",

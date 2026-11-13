@@ -13,3 +13,10 @@ pub use saved_searches::*;
 
 mod profiles;
 pub use profiles::*;
+
+mod compression;
+pub use compression::*;
+mod exports;
+pub use exports::*;
+mod resume;
+pub use resume::*;

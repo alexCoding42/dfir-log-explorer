@@ -2612,3 +2612,28 @@ kbd {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.volume-tools {
+  margin: 8px 24px;
+  font-size: 0.85rem;
+}
+.volume-tools summary {
+  cursor: pointer;
+  padding: 8px 0;
+}
+.volume-tools p {
+  max-width: 85ch;
+  margin: 8px 0;
+}
+.volume-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0;
+}
+.volume-actions label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

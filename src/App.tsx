@@ -1,3 +1,4 @@
+import { VolumeTools } from "./VolumeTools";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -277,9 +278,9 @@ export function App({ bridge }: { bridge: Bridge }) {
     picking,
   ]);
   const beginImport = useCallback(
-    async (demo = false) => {
+    async (demo = false, resumable = false) => {
       if (importRunning.current) return;
-      if (!demo && mode === "custom" && !profile) {
+      if (!demo && !resumable && mode === "custom" && !profile) {
         setError(
           "Select a saved profile revision in Parsers before importing.",
         );
@@ -304,7 +305,9 @@ export function App({ bridge }: { bridge: Bridge }) {
         setCancelling(false);
         const summary = await (demo
           ? bridge.importDemo(setProgress)
-          : bridge.importFile(
+          : (resumable && bridge.importResumable
+              ? bridge.importResumable
+              : bridge.importFile)(
               mode,
               setProgress,
               mode === "custom" ? profile : null,
@@ -322,7 +325,7 @@ export function App({ bridge }: { bridge: Bridge }) {
       } catch (reason) {
         const message =
           reason instanceof Error ? reason.message : String(reason);
-        if (message.toLowerCase().includes("cancelled")) setNotice(message);
+        if (/cancelled|paused/i.test(message)) setNotice(message);
         else setError(message);
       } finally {
         importRunning.current = false;
@@ -659,6 +662,16 @@ export function App({ bridge }: { bridge: Bridge }) {
         {view !== "Explore" && view !== "Statistics" && (
           <PageHeading view={view} />
         )}
+        <VolumeTools
+          bridge={bridge}
+          info={caseInfo}
+          query={currentQuery}
+          disabled={disabled}
+          onStart={() => void beginImport(false, true)}
+          onBusy={setPicking}
+          onError={setError}
+          onNotice={setNotice}
+        />
         {error && (
           <div role="alert" className="message error-message">
             <AlertTriangle size={16} />
@@ -677,7 +690,7 @@ export function App({ bridge }: { bridge: Bridge }) {
             <div className="progress-heading">
               <LoaderCircle size={16} className="spin" />
               <strong>
-                {cancelling ? "Cancelling import…" : "Importing locally…"}
+                {cancelling ? "Stopping operation…" : "Importing locally…"}
               </strong>
               <span>
                 {importName} · {formatNumber(progress?.linesRead ?? 0)} lines

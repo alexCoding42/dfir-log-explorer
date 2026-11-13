@@ -52,6 +52,11 @@ export interface SourceSummary {
   provenance: string;
   parserMode: ParserMode;
   profile?: ProfileRevision;
+  compression?: {
+    format: string;
+    compressedBytes: number;
+    compressedSha256: string;
+  };
   totalBytes: number;
   totalEvents: number;
   totalLines?: number;
@@ -163,6 +168,19 @@ export interface QueryPage {
 }
 export interface Bridge {
   isDesktop: boolean;
+  pendingImport?(): Promise<PendingImport | null>;
+  discardPendingImport?(): Promise<void>;
+  importResumable?(
+    mode: ParserMode,
+    progress: (value: ImportProgress) => void,
+    profile?: ProfileSelection | null,
+  ): Promise<SourceSummary>;
+  exportResults?(
+    query: Query,
+    format: "csv" | "jsonLines",
+    includeRaw: boolean,
+    progress: (count: number) => void,
+  ): Promise<number | null>;
   parsingProfiles(): Promise<ProfileRevision[]>;
   putParsingProfile(
     previous: ProfileSelection | null,
@@ -221,4 +239,12 @@ export interface ProfilePreviewRow {
     parseError: string | null;
     jsonFields?: Record<string, unknown>;
   };
+}
+
+export interface PendingImport {
+  path: string;
+  events: number;
+  totalBytes: number;
+  bytesRead: number;
+  mode: ParserMode;
 }

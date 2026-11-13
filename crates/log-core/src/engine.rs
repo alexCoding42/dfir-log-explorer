@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     fs::File,
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Seek, SeekFrom},
     path::{Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
     time::{Duration, Instant},
@@ -27,6 +27,22 @@ const LIST_COLUMNS: &str = "id, line_number, byte_offset, substring(message, 1, 
 
 #[derive(Debug, Error)]
 pub enum EngineError {
+    #[error("Invalid or truncated gzip source. Import was not published.")]
+    InvalidCompression,
+    #[error("Gzip decoded data exceeds the 10 GiB limit.")]
+    DecompressionLimit,
+    #[error("Export cancelled. No output file was published.")]
+    ExportCancelled,
+    #[error("Save the case before starting a resumable import.")]
+    ResumeRequiresSavedCase,
+    #[error("An incomplete import exists. Resume it with its original file or discard it first.")]
+    PendingImportExists,
+    #[error(
+        "Invalid or incompatible ingestion checkpoint. Discard the incomplete import to continue."
+    )]
+    InvalidCheckpoint,
+    #[error("Import paused. Committed checkpoints were retained; incomplete events remain hidden. Resume with the original file.")]
+    ImportPaused,
     #[error("Invalid parsing profile: {0}")]
     InvalidProfile(String),
     #[error("The parsing profile is missing, malformed or has an unsupported definition/storage version.")]
@@ -55,7 +71,7 @@ pub enum EngineError {
     SourceChanged,
     #[error("Select a regular file, not a directory or device.")]
     NotRegularFile,
-    #[error("This version supports uncompressed UTF-8 text logs. Compressed, UTF-16, and binary formats need a dedicated reader.")]
+    #[error("Supported sources are text logs and gzip. ZIP, UTF-16 and binary formats need a dedicated reader.")]
     UnsupportedFormat,
     #[error("Invalid query: use a 1–500 limit, nonnegative offset, values up to 4096 characters, and a valid increasing time range.")]
     InvalidQuery,
@@ -97,6 +113,8 @@ pub struct SourceSummary {
     pub parser_mode: ParserMode,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub profile: Option<ProfileRevision>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compression: Option<crate::CompressionInfo>,
     pub partial_events: u64,
     pub unparsed_events: u64,
     pub total_bytes: u64,
@@ -140,7 +158,7 @@ pub struct EventDetail {
     pub raw_hex: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryPage {
     pub statistics: Statistics,
@@ -157,11 +175,12 @@ type StatisticsCache = std::collections::VecDeque<(String, Vec<Value>, Statistic
 
 pub struct Engine {
     statistics_cache: std::cell::RefCell<StatisticsCache>,
+    page_cache: std::cell::RefCell<std::collections::VecDeque<(String, QueryPage)>>,
     connection: Option<Connection>,
     _storage: Option<TempDir>,
     database_path: PathBuf,
     case_name: String,
-    has_json_attributes: bool,
+    pub(crate) has_json_attributes: bool,
 }
 
 impl Engine {
@@ -187,6 +206,7 @@ impl Engine {
         )?;
         Ok(Self {
             statistics_cache: std::cell::RefCell::new(StatisticsCache::new()),
+            page_cache: std::cell::RefCell::new(std::collections::VecDeque::new()),
             connection: Some(connection),
             _storage: Some(storage),
             database_path: path,
@@ -246,6 +266,7 @@ impl Engine {
         )?;
         let engine = Self {
             statistics_cache: std::cell::RefCell::new(StatisticsCache::new()),
+            page_cache: std::cell::RefCell::new(std::collections::VecDeque::new()),
             connection: Some(connection),
             _storage: None,
             database_path: path.to_path_buf(),
@@ -364,7 +385,7 @@ impl Engine {
         if mode == ParserMode::Custom {
             return Err(EngineError::UnsupportedProfile);
         }
-        self.import_selected(path, mode, cancelled, progress, identity, None)
+        self.import_selected(path, mode, cancelled, progress, identity, None, false)
     }
 
     pub fn import_with_profile(
@@ -382,9 +403,41 @@ impl Engine {
             progress,
             None,
             Some(profile),
+            false,
         )
     }
 
+    /// A single durable, hidden staging import per saved case. Resumes use the
+    /// stored parser revision, never a later edit from the current profile list.
+    pub fn import_resumable(
+        &mut self,
+        path: &Path,
+        mode: ParserMode,
+        selection: Option<ProfileSelection>,
+        cancelled: &AtomicBool,
+        progress: impl FnMut(ImportProgress),
+    ) -> Result<SourceSummary, EngineError> {
+        if self._storage.is_some() {
+            return Err(EngineError::ResumeRequiresSavedCase);
+        }
+        let pending = self.pending_import()?;
+        let (mode, profile) = if let Some(state) = pending {
+            (state.mode, state.profile)
+        } else {
+            match (mode, selection) {
+                (ParserMode::Custom, Some(selection)) => {
+                    (mode, Some(self.profile_revision(selection)?))
+                }
+                (ParserMode::Custom, None) | (_, Some(_)) => {
+                    return Err(EngineError::UnsupportedProfile)
+                }
+                (_, None) => (mode, None),
+            }
+        };
+        self.import_selected(path, mode, cancelled, progress, None, profile, true)
+    }
+
+    #[allow(clippy::too_many_arguments)]
     fn import_selected(
         &mut self,
         path: &Path,
@@ -393,7 +446,32 @@ impl Engine {
         mut progress: impl FnMut(ImportProgress),
         identity: Option<(&str, &str)>,
         profile: Option<ProfileRevision>,
+        resumable: bool,
     ) -> Result<SourceSummary, EngineError> {
+        let existing = self.pending_import()?;
+        if existing.is_some() && !resumable {
+            return Err(EngineError::PendingImportExists);
+        }
+        let original_path = path;
+        if !std::fs::metadata(path)?.is_file() {
+            return Err(EngineError::NotRegularFile);
+        }
+        let original_metadata = std::fs::metadata(path)?;
+        let decoded = crate::compression::decode(path, cancelled, crate::MAX_DECODED_BYTES)?;
+        let compression = decoded.as_ref().map(|(_, info)| info.clone());
+        let path = decoded.as_ref().map_or(path, |(file, _)| file.path());
+        let original_name = original_path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
+        let original_provenance = original_path.to_string_lossy().into_owned();
+        let identity = identity.or(Some((&original_name, &original_provenance)));
+        let full_hash = if resumable {
+            Some(crate::compression::digest(path, cancelled)?)
+        } else {
+            None
+        };
         let compiled = profile
             .as_ref()
             .map(|p| p.definition.compile())
@@ -434,24 +512,89 @@ impl Engine {
             mut unparsed,
         ) = (0u64, 0u64, 0u64, 0u64, 0u64, 0u64, 0u64);
 
-        let source_id: i64 = self.connection()?.query_row(
+        let mut source_id: i64 = self.connection()?.query_row(
             "SELECT coalesce(max(id), 0) + 1 FROM sources",
             [],
             |row| row.get(0),
         )?;
-        let first_id: i64 =
+        let mut first_id: i64 =
             self.connection()?
                 .query_row("SELECT coalesce(max(id), 0) FROM events", [], |row| {
                     row.get(0)
                 })?;
+        let mut checkpoint = if resumable {
+            if let Some(state) = existing {
+                if state.path != original_provenance
+                    || state.total_bytes != total_bytes
+                    || Some(&state.sha256) != full_hash.as_ref()
+                    || state.compression != compression
+                {
+                    return Err(EngineError::SourceChanged);
+                }
+                Some(state)
+            } else {
+                let state = crate::PendingImport {
+                    version: 1,
+                    path: original_provenance.clone(),
+                    mode,
+                    profile: profile.clone(),
+                    compression: compression.clone(),
+                    sha256: full_hash.clone().unwrap_or_default(),
+                    total_bytes,
+                    source_id,
+                    first_id,
+                    bytes_read: 0,
+                    lines: 0,
+                    events: 0,
+                    parsed: 0,
+                    partial: 0,
+                    unparsed: 0,
+                    text: 0,
+                    warnings: 0,
+                };
+                self.connection()?.execute_batch("BEGIN; CREATE TABLE ingestion_events AS SELECT * FROM events WHERE false; CREATE TABLE ingestion_attributes AS SELECT * FROM event_attributes WHERE false; CREATE TABLE ingestion_checkpoint (state VARCHAR);")?;
+                let written = self.write_checkpoint(&state);
+                if let Err(error) = written {
+                    self.connection()?.execute_batch("ROLLBACK;")?;
+                    return Err(error);
+                }
+                self.connection()?.execute_batch("COMMIT;")?;
+                Some(state)
+            }
+        } else {
+            None
+        };
+        if let Some(state) = &checkpoint {
+            source_id = state.source_id;
+            first_id = state.first_id;
+            bytes_read = state.bytes_read;
+            lines = state.lines;
+            events = state.events;
+            parsed = state.parsed;
+            partial = state.partial;
+            unparsed = state.unparsed;
+            text = state.text;
+            warnings = state.warnings;
+            reader.seek(SeekFrom::Start(bytes_read))?;
+        }
+        let events_table = if resumable {
+            "ingestion_events"
+        } else {
+            "events"
+        };
+        let attributes_table = if resumable {
+            "ingestion_attributes"
+        } else {
+            "event_attributes"
+        };
         self.connection()?.execute_batch("BEGIN TRANSACTION;")?;
         let result = (|| {
-            let mut appender = self.connection()?.appender("events")?;
-            let mut attributes = self.connection()?.appender("event_attributes")?;
+            let mut appender = self.connection()?.appender(events_table)?;
+            let mut attributes = self.connection()?.appender(attributes_table)?;
             progress(ImportProgress {
-                bytes_read: 0,
+                bytes_read,
                 total_bytes,
-                lines_read: 0,
+                lines_read: lines,
                 elapsed_ms: 0,
             });
             loop {
@@ -534,6 +677,32 @@ impl Engine {
                     json_fields,
                 ])?;
                 bytes_read += size as u64;
+                if resumable && events.is_multiple_of(crate::CHECKPOINT_EVENTS) {
+                    appender.flush()?;
+                    drop(appender);
+                    attributes.flush()?;
+                    drop(attributes);
+                    let state = checkpoint.as_mut().ok_or(EngineError::InvalidCheckpoint)?;
+                    state.bytes_read = bytes_read;
+                    state.lines = lines;
+                    state.events = events;
+                    state.parsed = parsed;
+                    state.partial = partial;
+                    state.unparsed = unparsed;
+                    state.text = text;
+                    state.warnings = warnings;
+                    self.write_checkpoint(state)?;
+                    self.connection()?
+                        .execute_batch("COMMIT; BEGIN TRANSACTION;")?;
+                    appender = self.connection()?.appender(events_table)?;
+                    attributes = self.connection()?.appender(attributes_table)?;
+                    progress(ImportProgress {
+                        bytes_read,
+                        total_bytes,
+                        lines_read: lines,
+                        elapsed_ms: started.elapsed().as_millis() as u64,
+                    });
+                }
                 if last_progress.elapsed() >= Duration::from_millis(100) {
                     progress(ImportProgress {
                         bytes_read,
@@ -558,6 +727,20 @@ impl Engine {
             {
                 return Err(EngineError::SourceChanged);
             }
+            let original_after = std::fs::metadata(original_path)?;
+            if original_metadata.len() != original_after.len()
+                || original_metadata.modified().ok() != original_after.modified().ok()
+            {
+                return Err(EngineError::SourceChanged);
+            }
+            if resumable && Some(crate::compression::digest(path, cancelled)?) != full_hash {
+                return Err(EngineError::SourceChanged);
+            }
+            if let Some(info) = &compression {
+                if crate::compression::digest(original_path, cancelled)? != info.compressed_sha256 {
+                    return Err(EngineError::SourceChanged);
+                }
+            }
             let summary = SourceSummary {
                 id: source_id as u64,
                 provenance: identity
@@ -565,6 +748,7 @@ impl Engine {
                     .unwrap_or_else(|| path.to_string_lossy().into_owned()),
                 parser_mode: mode,
                 profile: profile.clone(),
+                compression: compression.clone(),
                 partial_events: partial,
                 unparsed_events: unparsed,
                 name: identity
@@ -581,7 +765,9 @@ impl Engine {
                 parsed_events: parsed,
                 text_events: text,
                 warning_events: warnings,
-                sha256: format!("{:x}", hash.finalize()),
+                sha256: full_hash
+                    .clone()
+                    .unwrap_or_else(|| format!("{:x}", hash.finalize())),
                 elapsed_ms: started.elapsed().as_millis() as u64,
             };
             let serialized =
@@ -590,6 +776,9 @@ impl Engine {
                 "INSERT INTO sources VALUES (?, ?)",
                 params![source_id, serialized],
             )?;
+            if resumable {
+                self.connection()?.execute_batch("INSERT INTO events SELECT * FROM ingestion_events; INSERT INTO event_attributes SELECT * FROM ingestion_attributes; DROP TABLE ingestion_events; DROP TABLE ingestion_attributes; DROP TABLE ingestion_checkpoint;")?;
+            }
             self.connection()?.execute_batch("COMMIT;")?;
             Ok(summary)
         })();
@@ -597,11 +786,23 @@ impl Engine {
             Ok(summary) => summary,
             Err(error) => {
                 self.connection()?.execute_batch("ROLLBACK;")?;
-                return Err(error);
+                return Err(if resumable && matches!(error, EngineError::Cancelled) {
+                    EngineError::ImportPaused
+                } else {
+                    error
+                });
             }
         };
+        if resumable {
+            has_attributes = self.connection()?.query_row(
+                "SELECT EXISTS(SELECT 1 FROM event_attributes LIMIT 1)",
+                [],
+                |r| r.get(0),
+            )?;
+        }
         self.has_json_attributes |= has_attributes;
         self.statistics_cache.borrow_mut().clear();
+        self.page_cache.borrow_mut().clear();
         progress(ImportProgress {
             bytes_read,
             total_bytes,
@@ -614,6 +815,17 @@ impl Engine {
     pub fn query(&self, query: &Query) -> Result<QueryPage, EngineError> {
         let started = Instant::now();
         let (predicate, values) = query.predicate_with_json(self.has_json_attributes)?;
+        let key = serde_json::to_string(query).map_err(|_| EngineError::InvalidQuery)?;
+        if let Some(mut page) = self
+            .page_cache
+            .borrow()
+            .iter()
+            .find(|(k, _)| k == &key)
+            .map(|(_, p)| p.clone())
+        {
+            page.elapsed_ms = started.elapsed().as_millis() as u64;
+            return Ok(page);
+        }
         let cached = self
             .statistics_cache
             .borrow()
@@ -653,14 +865,20 @@ impl Engine {
                 .query_map(params_from_iter(page_values.iter()), event_row)?
                 .collect::<Result<Vec<_>, _>>()?
         };
-        Ok(QueryPage {
+        let page = QueryPage {
             statistics,
             rows,
             total,
             offset: query.offset,
             limit: query.limit,
             elapsed_ms: started.elapsed().as_millis() as u64,
-        })
+        };
+        let mut cache = self.page_cache.borrow_mut();
+        if cache.len() == 4 {
+            cache.pop_front();
+        }
+        cache.push_back((key, page.clone()));
+        Ok(page)
     }
 
     pub fn detail(&self, id: u64) -> Result<EventDetail, EngineError> {
@@ -688,7 +906,7 @@ impl Engine {
     }
 }
 
-fn event_row(row: &duckdb::Row<'_>) -> duckdb::Result<EventRow> {
+pub(crate) fn event_row(row: &duckdb::Row<'_>) -> duckdb::Result<EventRow> {
     Ok(EventRow {
         source_id: row.get::<_, i64>(17)? as u64,
         id: row.get::<_, i64>(0)? as u64,

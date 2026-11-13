@@ -269,7 +269,7 @@ fn long_extracted_fields_cannot_inflate_pages_and_detail_remains_complete() {
 }
 
 #[test]
-fn rejects_compressed_binary_and_utf16_sources_without_replacing_data() {
+fn rejects_unsupported_archives_binary_and_utf16_sources_without_replacing_data() {
     let mut engine = Engine::new().unwrap();
     let old = source(b"keep this event\n");
     engine
@@ -280,12 +280,7 @@ fn rejects_compressed_binary_and_utf16_sources_without_replacing_data() {
             |_| {},
         )
         .unwrap();
-    for signature in [
-        b"\x1f\x8b".as_slice(),
-        b"PK\x03\x04",
-        b"ElfFile\0",
-        b"\xff\xfe",
-    ] {
+    for signature in [b"PK\x03\x04".as_slice(), b"ElfFile\0", b"\xff\xfe"] {
         let file = source(signature);
         assert!(matches!(
             engine.import(
