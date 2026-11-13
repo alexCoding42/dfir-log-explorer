@@ -48,7 +48,10 @@ impl Engine {
             || p.bytes_read > p.total_bytes
             || p.source_id < 1
             || p.first_id < 0
-            || p.events != p.parsed + p.partial + p.unparsed
+            || p.parsed
+                .checked_add(p.partial)
+                .and_then(|n| n.checked_add(p.unparsed))
+                != Some(p.events)
             || p.lines < p.events
         {
             return Err(EngineError::InvalidCheckpoint);
@@ -67,11 +70,36 @@ impl Engine {
         if let Some(profile) = &p.profile {
             profile.validate()?;
         }
-        let rows: i64 =
-            self.connection()?
-                .query_row("SELECT count(*) FROM ingestion_events", [], |r| r.get(0))?;
-        if rows as u64 != p.events {
+        let (rows, unique_ids, first, last, wrong_source): (i64, i64, i64, i64, i64) = self.connection()?.query_row(
+            "SELECT count(*), count(DISTINCT id), coalesce(min(id),0), coalesce(max(id),0), count(*) FILTER (WHERE source_id <> ?) FROM ingestion_events",
+            params![p.source_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))?;
+        if rows as u64 != p.events || unique_ids != rows || wrong_source != 0 {
             return Err(EngineError::InvalidCheckpoint);
+        }
+        if p.events == 0 {
+            if p.bytes_read != 0 || p.lines != 0 {
+                return Err(EngineError::InvalidCheckpoint);
+            }
+        } else {
+            let expected_last = i64::try_from(p.events)
+                .ok()
+                .and_then(|events| p.first_id.checked_add(events))
+                .ok_or(EngineError::InvalidCheckpoint)?;
+            if p.first_id.checked_add(1) != Some(first) || last != expected_last {
+                return Err(EngineError::InvalidCheckpoint);
+            }
+            let (line, offset, raw): (i64, i64, Vec<u8>) = self.connection()?.query_row(
+                "SELECT line_number, byte_offset, raw FROM ingestion_events WHERE id = ?",
+                params![last],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )?;
+            if offset < 0
+                || line < 1
+                || offset as u64 + raw.len() as u64 != p.bytes_read
+                || line as u64 + crate::records::physical_lines(&raw).saturating_sub(1) != p.lines
+            {
+                return Err(EngineError::InvalidCheckpoint);
+            }
         }
         Ok(Some(p))
     }

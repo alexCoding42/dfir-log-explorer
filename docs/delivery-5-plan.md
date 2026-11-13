@@ -1,11 +1,12 @@
-# Delivery 5: implementation proposal
+# Delivery 5: initial implementation plan
 
 Started on November 13, 2026 on `codex/16-20-delivery-5`, based on
 `fc072bc` (Delivery 4 integrated through PR #27). The user explicitly authorized
 starting Delivery 5. The user subsequently agreed the proposed initial measurement, gzip, export and
 resume scope. See [the acceptance contract](delivery-5-acceptance.md) for the
-implemented boundaries. This planning history is not delivery acceptance or a
-claim that benchmarks passed.
+implemented boundaries. The [validation record](delivery-5-validation.md) records the implemented
+optimization, actual measurements and trade-offs. This planning history is not
+delivery acceptance.
 
 ## Measurements and optimization (#16–#17)
 

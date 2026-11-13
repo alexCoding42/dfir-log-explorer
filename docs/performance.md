@@ -41,3 +41,13 @@ by adding instrumentation.
 Filtered searches/counts currently scan decoded text, and deep filtered offset pagination is not guaranteed to be constant-time. Unfiltered pages use contiguous event-ID boundaries to avoid skipping earlier results. Imports are atomic and block exploration until completion. The database buffer budget is 512 MB with two threads, while total process memory can exceed that budget. Filtered cursor navigation, indexes, and incremental imports will be considered against observed bottlenecks.
 
 Actual local verification measurements are recorded in `docs/validation.md` when available; they are not universal performance guarantees.
+
+## Delivery 5 measured scope
+
+See the [Delivery 5 validation record](delivery-5-validation.md) for retained
+100k/1m debug measurements, shared-container/cache limitations, correctness
+assertions and regressions. A four-page preview cache eliminates repeated SQL
+for identical validated queries and is invalidated on source publication.
+Uncached searches/deep offsets still scan; this is not a generalized indexing
+or throughput guarantee. Gzip and checkpoint ingestion have separate resource
+and integrity costs documented in the [acceptance contract](delivery-5-acceptance.md).

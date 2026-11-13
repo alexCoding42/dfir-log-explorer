@@ -428,6 +428,23 @@ fn invalid_checkpoint_version_is_explicit_and_can_be_discarded() {
         e.pending_import(),
         Err(EngineError::InvalidCheckpoint)
     ));
+    drop(e);
+    // A syntactically valid checkpoint with a corrupt record boundary is rejected too.
+    checkpoint.version = 1;
+    checkpoint.bytes_read += 1;
+    let connection = duckdb::Connection::open(&path).unwrap();
+    connection
+        .execute(
+            "UPDATE ingestion_checkpoint SET state = ?",
+            duckdb::params![serde_json::to_string(&checkpoint).unwrap()],
+        )
+        .unwrap();
+    drop(connection);
+    let e = Engine::open_case(&path).unwrap();
+    assert!(matches!(
+        e.pending_import(),
+        Err(EngineError::InvalidCheckpoint)
+    ));
     assert_eq!(e.query(&query()).unwrap().total, 0);
     e.discard_pending_import().unwrap();
     assert!(e.pending_import().unwrap().is_none());
@@ -469,4 +486,49 @@ fn cached_pages_preserve_fields_and_invalidate_after_publication() {
         }),
         Err(EngineError::InvalidQuery)
     ));
+}
+
+#[test]
+fn multiline_resume_uses_logical_record_boundary_after_reader_lookahead() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = source(&b"--audit-A--\nunfinished audit transaction\r\n".repeat(10_005));
+    let mut e = Engine::new().unwrap();
+    e.save_case(&directory.path().join("case.dfir")).unwrap();
+    let flag = AtomicBool::new(false);
+    assert!(matches!(
+        e.import_resumable(input.path(), ParserMode::Modsecurity, None, &flag, |p| {
+            if p.lines_read >= CHECKPOINT_EVENTS * 2 {
+                flag.store(true, Ordering::Relaxed);
+            }
+        }),
+        Err(EngineError::ImportPaused)
+    ));
+    let checkpoint = e.pending_import().unwrap().unwrap();
+    assert_eq!(checkpoint.events, CHECKPOINT_EVENTS);
+    let summary = e
+        .import_resumable(
+            input.path(),
+            ParserMode::Text,
+            None,
+            &AtomicBool::new(false),
+            |_| {},
+        )
+        .unwrap();
+    assert_eq!(summary.total_events, 10_005);
+    assert_eq!(summary.total_lines, 20_010);
+    let mut reference = Engine::new().unwrap();
+    reference
+        .import(
+            input.path(),
+            ParserMode::Modsecurity,
+            &AtomicBool::new(false),
+            |_| {},
+        )
+        .unwrap();
+    for id in [10_000, 10_001, 10_005] {
+        assert_eq!(
+            serde_json::to_value(e.detail(id).unwrap()).unwrap(),
+            serde_json::to_value(reference.detail(id).unwrap()).unwrap()
+        );
+    }
 }

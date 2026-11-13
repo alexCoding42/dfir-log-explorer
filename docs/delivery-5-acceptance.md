@@ -57,8 +57,9 @@ visible partial results. Previous completed sources are preserved. **Discard
 incomplete import** removes only checkpoint/staging data; it also permits
 recovery from an explicitly rejected checkpoint version. An old application
 must not modify a case with a pending import; the new application rejects a
-checkpoint inconsistent with completed events/sources. No downgrade migration
-or concurrent case access is supported.
+checkpoint inconsistent with completed events/sources. Older applications do not understand compression provenance metadata; use
+version 0.6 or later to interpret those cases. No downgrade migration or
+concurrent case access is supported.
 
 ## Exports
 
